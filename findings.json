@@ -1,0 +1,282 @@
+[
+  {
+    "severity": "critical",
+    "file": "D:/Desktop/component-hub/main.js",
+    "line": 621,
+    "category": "NPE风险",
+    "description": "bindEvents() 中 document.getElementById(\"searchInput\") 未判空就直接调用 addEventListener，若该元素在DOM中不存在则整个应用初始化崩溃",
+    "suggestion": "添加 null 保护: const searchInput = document.getElementById(\"searchInput\"); if (!searchInput) return console.warn(\"searchInput not found\");"
+  },
+  {
+    "severity": "critical",
+    "file": "D:/Desktop/component-hub/main.js",
+    "line": 1714,
+    "category": "NPE风险",
+    "description": "updateImagePreview 中 previewDiv 可能为 null（预览元素未渲染），直接调用 .querySelector(\"img\") 会引发 Uncaught TypeError 导致函数崩溃",
+    "suggestion": "在 const imageElement = previewDiv.querySelector(\"img\") 前增加 if (!previewDiv) return;"
+  },
+  {
+    "severity": "critical",
+    "file": "D:/Desktop/component-hub/main.js",
+    "line": 2001,
+    "category": "类型转换错误",
+    "description": "addComponent() 中 parseInt(document.getElementById(\"addComponentStock\").value) 未处理 NaN：空字符串时 parseInt(\"\") 返回 NaN，导致 component.stock 为 NaN，下游所有库存比较和显示均异常",
+    "suggestion": "改为 const stock = parseInt(document.getElementById(\"addComponentStock\").value) || 0;"
+  },
+  {
+    "severity": "critical",
+    "file": "D:/Desktop/component-hub/main.js",
+    "line": 2075,
+    "category": "类型转换错误",
+    "description": "saveComponent() 中 parseInt(document.getElementById(\"componentStock\").value) 未处理 NaN，空值或无效输入使 newStock 为 NaN，导致库存比较条件 newStock !== beforeStock 永远为 true 且存储 NaN 数据",
+    "suggestion": "改为 parseInt(v) || 0"
+  },
+  {
+    "severity": "critical",
+    "file": "D:/Desktop/component-hub/main.js",
+    "line": 2444,
+    "category": "XSS风险",
+    "description": "getComponentCardHTML 使用模板字符串直接拼接 ${component.name} ${component.model} ${component.image} 等到 innerHTML，未做任何 HTML 转义。恶意数据写入后触发 XSS",
+    "suggestion": "对所有组件字段使用 this.escapeHtml() 包裹后再插入 innerHTML"
+  },
+  {
+    "severity": "critical",
+    "file": "D:/Desktop/component-hub/main.js",
+    "line": 1198,
+    "category": "循环/遍历bug",
+    "description": "forEach 回调使用 function(c) { ... }（非箭头函数），内部 this 不指向 ComponentManager 实例。后续维护添加 this 引用时会产生难以追踪的 bug",
+    "suggestion": "改用箭头函数 (c) => { ... } 保持 this 指向一致"
+  },
+  {
+    "severity": "critical",
+    "file": "D:/Desktop/component-hub/main.js",
+    "line": 3279,
+    "category": "localStorage 操作",
+    "description": "syncSettingsToServer() 中遍历多个 localStorage key 时 JSON.parse(val) 未单独 try-catch，任何一个 key 的存储数据损坏都会抛出异常中断整个同步流程",
+    "suggestion": "对每个 JSON.parse 单独 try-catch 或使用 tryParse 工具函数跳过损坏项"
+  },
+  {
+    "severity": "major",
+    "file": "D:/Desktop/component-hub/main.js",
+    "line": 687,
+    "category": "NPE风险",
+    "description": "document.getElementById(\"addFirstComponent\") 未判空直接 addEventListener。若初始化时已有元器件数据，该元素可能不在 DOM 中，导致崩溃",
+    "suggestion": "添加 null 检查: const btn = document.getElementById(\"addFirstComponent\"); if (btn) btn.addEventListener(...);"
+  },
+  {
+    "severity": "major",
+    "file": "D:/Desktop/component-hub/main.js",
+    "line": 2031,
+    "category": "异步/Promise",
+    "description": "saveDatasheetFile 的 async IIFE 未 catch 错误。IndexedDB 写入失败（存储满/权限错误）时 Promise rejection 未被捕获导致 unhandled rejection",
+    "suggestion": "添加 .catch(err => console.error(\"Datasheet save failed:\", err))"
+  },
+  {
+    "severity": "major",
+    "file": "D:/Desktop/component-hub/main.js",
+    "line": 2114,
+    "category": "异步/Promise",
+    "description": "saveComponent() 中也存在未 catch 的 saveDatasheetFile async IIFE，IndexedDB 写入失败时 Promise rejection 未处理",
+    "suggestion": "添加 .catch(err => console.error(\"Datasheet save failed:\", err))"
+  },
+  {
+    "severity": "major",
+    "file": "D:/Desktop/component-hub/main.js",
+    "line": 2147,
+    "category": "异步/Promise",
+    "description": "deleteDatasheetFile(componentId) 返回的 Promise 未被 await 或 catch。IndexedDB 删除失败时错误被静默丢弃",
+    "suggestion": "添加 await 或 .catch(): deleteDatasheetFile(componentId).catch(err => console.error(\"Datasheet delete failed:\", err))"
+  },
+  {
+    "severity": "major",
+    "file": "D:/Desktop/component-hub/main.js",
+    "line": 2090,
+    "category": "类型转换错误",
+    "description": "parseInt(document.getElementById(\"componentThreshold\").value) 未处理NaN。空字符串或非数字输入使 threshold 变为 NaN",
+    "suggestion": "parseInt(v) || this.settings.defaultThreshold || 10"
+  },
+  {
+    "severity": "major",
+    "file": "D:/Desktop/component-hub/main.js",
+    "line": 914,
+    "category": "事件绑定缺陷",
+    "description": "ESC 键盘事件处理逻辑重复绑定：第914-925行和第977-1002行分别绑定了两个独立的 keydown 事件处理 ESC 键，功能重叠且逻辑不统一",
+    "suggestion": "合并两个 ESC 分支到一个 keydown 事件处理函数中"
+  },
+  {
+    "severity": "major",
+    "file": "D:/Desktop/component-hub/main.js",
+    "line": 2859,
+    "category": "逻辑错误",
+    "description": "updateParamFilterFields 中 this.paramFilterActive = false 被无条件重置，但切换品类时旧筛选条件可能未被正确清除，导致跨品类筛选残留",
+    "suggestion": "在切换品类时完整重置 paramFilters = {} 再重建，移除 _fromThisCategory 标记清理机制"
+  },
+  {
+    "severity": "major",
+    "file": "D:/Desktop/component-hub/main.js",
+    "line": 3060,
+    "category": "逻辑错误",
+    "description": "collectParams() 中对于无 paramDefinitions 的品类，读取 document.getElementById(\"componentValue\")（编辑模态框输入），而非添加模态框对应元素。addComponent() 中调用时该元素不存在，导致新组件的 value 字段始终为空",
+    "suggestion": "collectParams 增加调用来源参数区分 add/edit 模态框"
+  },
+  {
+    "severity": "major",
+    "file": "D:/Desktop/component-hub/main.js",
+    "line": 1682,
+    "category": "异步/Promise",
+    "description": "showEditModal 中 (async () => { await getDatasheetFile(...) })() 未 catch 错误。IndexedDB 读取失败时 Promise rejection 未处理",
+    "suggestion": "添加 .catch(err => console.error(\"Failed to load datasheet:\", err))"
+  },
+  {
+    "severity": "minor",
+    "file": "D:/Desktop/component-hub/main.js",
+    "line": 692,
+    "category": "NPE风险",
+    "description": "document.getElementById(\"closeModal\") 未判空直接 addEventListener。若编辑模态框关闭按钮不在当前页面则崩溃",
+    "suggestion": "添加 null 检查或使用可选链：document.getElementById(\"closeModal\")?.addEventListener(...)"
+  },
+  {
+    "severity": "minor",
+    "file": "D:/Desktop/component-hub/main.js",
+    "line": 696,
+    "category": "NPE风险",
+    "description": "document.getElementById(\"closeAddModal\") 未判空直接 addEventListener",
+    "suggestion": "添加 null 检查或可选链"
+  },
+  {
+    "severity": "minor",
+    "file": "D:/Desktop/component-hub/main.js",
+    "line": 711,
+    "category": "NPE风险",
+    "description": "document.getElementById(\"componentImage\") 未判空直接 addEventListener",
+    "suggestion": "添加 null 检查"
+  },
+  {
+    "severity": "minor",
+    "file": "D:/Desktop/component-hub/main.js",
+    "line": 716,
+    "category": "NPE风险",
+    "description": "document.getElementById(\"componentDatasheet\") 未判空直接 addEventListener",
+    "suggestion": "添加 null 检查"
+  },
+  {
+    "severity": "minor",
+    "file": "D:/Desktop/component-hub/main.js",
+    "line": 745,
+    "category": "NPE风险",
+    "description": "document.getElementById(\"addComponentCategory\") 未判空直接 addEventListener",
+    "suggestion": "添加 null 检查"
+  },
+  {
+    "severity": "minor",
+    "file": "D:/Desktop/component-hub/main.js",
+    "line": 750,
+    "category": "NPE风险",
+    "description": "document.getElementById(\"componentCategory\") 未判空直接 addEventListener",
+    "suggestion": "添加 null 检查"
+  },
+  {
+    "severity": "minor",
+    "file": "D:/Desktop/component-hub/main.js",
+    "line": 764,
+    "category": "NPE风险",
+    "description": "document.getElementById(\"componentForm\") 未判空直接 addEventListener",
+    "suggestion": "添加 null 检查"
+  },
+  {
+    "severity": "minor",
+    "file": "D:/Desktop/component-hub/main.js",
+    "line": 789,
+    "category": "NPE风险",
+    "description": "document.getElementById(\"deleteComponent\") 未判空直接 addEventListener",
+    "suggestion": "添加 null 检查"
+  },
+  {
+    "severity": "minor",
+    "file": "D:/Desktop/component-hub/main.js",
+    "line": 802,
+    "category": "NPE风险",
+    "description": "document.getElementById(\"exportBtn\") 未判空直接 addEventListener",
+    "suggestion": "添加 null 检查"
+  },
+  {
+    "severity": "minor",
+    "file": "D:/Desktop/component-hub/main.js",
+    "line": 816,
+    "category": "NPE风险",
+    "description": "document.getElementById(\"sidebarToggle\") 未判空直接 addEventListener",
+    "suggestion": "添加 null 检查"
+  },
+  {
+    "severity": "minor",
+    "file": "D:/Desktop/component-hub/main.js",
+    "line": 895,
+    "category": "NPE风险",
+    "description": "document.getElementById(\"filterAll\") document.getElementById(\"filterCheckout\") document.getElementById(\"filterInbound\") 均未判空直接 addEventListener",
+    "suggestion": "统一添加 null 检查或使用可选链"
+  },
+  {
+    "severity": "minor",
+    "file": "D:/Desktop/component-hub/main.js",
+    "line": 900,
+    "category": "NPE风险",
+    "description": "document.getElementById(\"clearHistoryAll\") 等清空历史按钮未判空直接 addEventListener",
+    "suggestion": "添加 null 检查"
+  },
+  {
+    "severity": "minor",
+    "file": "D:/Desktop/component-hub/main.js",
+    "line": 905,
+    "category": "NPE风险",
+    "description": "document.getElementById(\"closeHistoryModal\") 未判空直接 addEventListener",
+    "suggestion": "添加 null 检查"
+  },
+  {
+    "severity": "minor",
+    "file": "D:/Desktop/component-hub/main.js",
+    "line": 1022,
+    "category": "NPE风险",
+    "description": "批量编辑相关多个 getElementById 调用未判空（closeBulkEditModal, bulkEditCancel, bulkEditSave 等）",
+    "suggestion": "统一使用可选链 ?.addEventListener(...)"
+  },
+  {
+    "severity": "minor",
+    "file": "D:/Desktop/component-hub/main.js",
+    "line": 3615,
+    "category": "XSS风险",
+    "description": "renderBulkEditComponentList 中 innerHTML 直接拼接 ${comp.name} ${comp.model} ${comp.value} 等，未做 HTML 转义",
+    "suggestion": "使用 this.escapeHtml() 包裹所有插值表达式"
+  },
+  {
+    "severity": "minor",
+    "file": "D:/Desktop/component-hub/main.js",
+    "line": 4541,
+    "category": "XSS风险",
+    "description": "showCheckoutConfirmDialog 中 innerHTML 拼接 ${component.name} 等字段未转义",
+    "suggestion": "使用 this.escapeHtml() 包裹"
+  },
+  {
+    "severity": "minor",
+    "file": "D:/Desktop/component-hub/main.js",
+    "line": 5019,
+    "category": "XSS风险",
+    "description": "showInboundConfirmDialog 中 innerHTML 拼接 ${component.name} 等字段未转义",
+    "suggestion": "使用 this.escapeHtml() 包裹"
+  },
+  {
+    "severity": "minor",
+    "file": "D:/Desktop/component-hub/main.js",
+    "line": 167,
+    "category": "逻辑错误",
+    "description": "正则 /(\\d+\\.?\\d*)\\s*(uf|nf|pf|k|m|g|f|Ω|ω|ω|ω)$/i 中 ω 和 Ω 各重复出现三次，去重后功能不变但正则更清晰",
+    "suggestion": "将重复的 ω/Ω 去重，改为 (uf|nf|pf|k|m|g|f|Ω|ω)"
+  },
+  {
+    "severity": "minor",
+    "file": "D:/Desktop/component-hub/main.js",
+    "line": 3242,
+    "category": "逻辑错误",
+    "description": "saveData() 在保存前对 this.components 原地 sort 排序，修改了原数组引用。外部持有引用的代码会观察到排序变更",
+    "suggestion": "排序保存时使用拷贝：const sorted = [...this.components].sort(...)"
+  }
+]

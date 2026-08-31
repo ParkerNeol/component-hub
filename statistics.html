@@ -1,0 +1,1022 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>统计分析 - 电子元器件管理系统</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #1a1d29;
+            --bg-secondary: #242938;
+            --bg-card: #2a2f42;
+            --accent-primary: #00d4ff;
+            --accent-secondary: #ff6b35;
+            --text-primary: #f1f2f6;
+            --text-secondary: #a4a6b3;
+        }
+        
+        body {
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            font-family: 'Noto Sans SC', sans-serif;
+        }
+        
+        .circuit-bg {
+            background-image: 
+                radial-gradient(circle at 25px 25px, rgba(0, 212, 255, 0.1) 2px, transparent 2px),
+                linear-gradient(90deg, rgba(0, 212, 255, 0.05) 1px, transparent 1px),
+                linear-gradient(rgba(0, 212, 255, 0.05) 1px, transparent 1px);
+            background-size: 50px 50px, 25px 25px, 25px 25px;
+        }
+        
+        .stats-card {
+            background: var(--bg-card);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 16px;
+            backdrop-filter: blur(10px);
+            transition: all 0.3s ease;
+        }
+        
+        .stats-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+        }
+        
+        .chart-container {
+            background: var(--bg-card);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 16px;
+            backdrop-filter: blur(10px);
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, var(--accent-primary), #0099cc);
+            border: none;
+            border-radius: 8px;
+            color: white;
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(0, 212, 255, 0.4);
+        }
+        
+        .fade-in {
+            opacity: 0;
+            transform: translateY(20px);
+        }
+        
+        .fade-in.visible {
+            opacity: 1;
+            transform: translateY(0);
+            transition: all 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        .trend-up {
+            color: #00ff88;
+        }
+
+        .trend-down {
+            color: #ff4757;
+        }
+
+        .trend-neutral {
+            color: #ffb347;
+        }
+
+        /* 滚动条样式 */
+        #warningList::-webkit-scrollbar,
+        #usageRanking::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        #usageRanking::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 3px;
+        }
+
+        #usageRanking::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 3px;
+        }
+
+        #usageRanking::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        /* 全局滚动条样式 - 与页面风格一致 */
+        ::-webkit-scrollbar {
+            width: 10px;
+            height: 10px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: var(--bg-secondary);
+            border-radius: 5px;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: linear-gradient(135deg, var(--accent-primary), #0099cc);
+            border-radius: 5px;
+            border: 2px solid var(--bg-secondary);
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: linear-gradient(135deg, #00e5ff, #00b8e6);
+        }
+
+        /* Firefox 滚动条样式 */
+        * {
+            scrollbar-width: thin;
+            scrollbar-color: var(--accent-primary) var(--bg-secondary);
+        }
+    </style>
+</head>
+<body class="circuit-bg min-h-screen">
+    <!-- 头部导航 -->
+    <header class="fixed top-0 left-0 right-0 z-50 bg-gray-900/50 backdrop-blur-sm border-b border-gray-700/50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-16">
+                <div class="flex items-center space-x-4">
+                    <a href="index.html" class="p-2 rounded-md text-gray-400 hover:text-white hover:bg-gray-700 transition-colors">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
+                        </svg>
+                    </a>
+                    <h1 class="text-xl font-bold bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">
+                        统计分析
+                    </h1>
+                </div>
+                
+                <div class="flex items-center space-x-4">
+                    <select id="timeRange" class="bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-sm text-white">
+                        <option value="7">最近7天</option>
+                        <option value="30" selected>最近30天</option>
+                        <option value="90">最近90天</option>
+                        <option value="365">最近一年</option>
+                    </select>
+                    
+                    <button id="refreshDataBtn" class="btn-primary px-4 py-2 text-sm">
+                        刷新数据
+                    </button>
+                    
+                    <button id="exportReportBtn" class="bg-gray-700 hover:bg-gray-600 px-4 py-2 text-sm rounded-lg transition-colors">
+                        导出报告
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-20 pb-8">
+        <!-- 关键指标卡片 -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+            <div class="stats-card p-6 fade-in">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-sm text-gray-400">总元器件数</p>
+                        <p class="text-3xl font-bold text-blue-400" id="totalComponentsMetric">0</p>
+                        <div class="flex items-center mt-2" id="totalComponentsTrend">
+                            <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 11l5-5m0 0l5 5m-5-5v12"></path>
+                            </svg>
+                            <span class="text-sm">0% 本月</span>
+                        </div>
+                    </div>
+                    <div class="w-12 h-12 bg-blue-500/20 rounded-lg flex items-center justify-center">
+                        <svg class="w-6 h-6 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path>
+                        </svg>
+                    </div>
+                </div>
+            </div>
+
+            <div class="stats-card p-6 fade-in">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-sm text-gray-400">库存总值</p>
+                        <p class="text-3xl font-bold text-green-400" id="totalValueMetric">¥0</p>
+                        <div class="flex items-center mt-2" id="totalValueTrend">
+                            <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 11l5-5m0 0l5 5m-5-5v12"></path>
+                            </svg>
+                            <span class="text-sm">0% 本月</span>
+                        </div>
+                    </div>
+                    <div class="w-12 h-12 bg-green-500/20 rounded-lg flex items-center justify-center">
+                        <svg class="w-6 h-6 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1"></path>
+                        </svg>
+                    </div>
+                </div>
+            </div>
+
+            <div class="stats-card p-6 fade-in">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-sm text-gray-400">低库存预警</p>
+                        <p class="text-3xl font-bold text-yellow-400" id="lowStockMetric">0</p>
+                        <div class="flex items-center mt-2" id="lowStockTrend">
+                            <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 13l-5 5m0 0l-5-5m5 5V6"></path>
+                            </svg>
+                            <span class="text-sm">0 本月</span>
+                        </div>
+                    </div>
+                    <div class="w-12 h-12 bg-yellow-500/20 rounded-lg flex items-center justify-center">
+                        <svg class="w-6 h-6 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"></path>
+                        </svg>
+                    </div>
+                </div>
+            </div>
+
+            <div class="stats-card p-6 fade-in">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-sm text-gray-400">缺货元器件</p>
+                        <p class="text-3xl font-bold text-red-400" id="outOfStockMetric">0</p>
+                        <div class="flex items-center mt-2" id="outOfStockTrend">
+                            <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 13l-5 5m0 0l-5-5m5 5V6"></path>
+                            </svg>
+                            <span class="text-sm">0 本月</span>
+                        </div>
+                    </div>
+                    <div class="w-12 h-12 bg-red-500/20 rounded-lg flex items-center justify-center">
+                        <svg class="w-6 h-6 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 图表区域 -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+            <!-- 库存趋势图 -->
+            <div class="chart-container p-6 fade-in">
+                <div class="flex items-center justify-between mb-6">
+                    <h2 class="text-lg font-semibold">库存趋势</h2>
+                    <div class="flex items-center space-x-2">
+                        <div class="w-3 h-3 rounded-full bg-blue-400"></div>
+                        <span class="text-sm text-gray-400">总库存</span>
+                        <div class="w-3 h-3 rounded-full bg-green-400 ml-4"></div>
+                        <span class="text-sm text-gray-400">新增</span>
+                    </div>
+                </div>
+                <div id="stockTrendChart" style="height: 300px;"></div>
+            </div>
+            
+            <!-- 分类分布饼图 -->
+            <div class="chart-container p-6 fade-in">
+                <div class="flex items-center justify-between mb-6">
+                    <h2 class="text-lg font-semibold">分类分布</h2>
+                    <button id="categoryDetailBtn" class="text-sm text-blue-400 hover:text-blue-300">查看详情</button>
+                </div>
+                <div id="categoryChart" style="height: 300px;"></div>
+            </div>
+        </div>
+
+        <!-- 详细统计 -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+            <!-- 库存状态分布 -->
+            <div class="chart-container p-6 fade-in">
+                <h2 class="text-lg font-semibold mb-6">库存状态分布</h2>
+                <div id="stockStatusChart" style="height: 250px;"></div>
+            </div>
+
+            <!-- 使用频率排行 -->
+            <div class="chart-container p-6 fade-in">
+                <h2 class="text-lg font-semibold mb-6">使用频率排行</h2>
+                <div class="space-y-4 max-h-[300px] overflow-y-auto pr-2" id="usageRanking">
+                    <!-- 动态生成 -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        class StatisticsManager {
+            constructor() {
+                this.components = [];
+                this.charts = {};
+                // 从 localStorage 读取时间范围，默认30天
+                const savedTimeRange = localStorage.getItem('statisticsTimeRange');
+                this.timeRange = savedTimeRange ? parseInt(savedTimeRange) : 30;
+                this.init();
+            }
+
+            init() {
+                this.loadData();
+                this.bindEvents();
+                this.initCharts();
+                this.updateMetrics();
+                this.initAnimations();
+
+                // 恢复时间范围选择器的状态
+                const timeRangeSelect = document.getElementById('timeRange');
+                if (timeRangeSelect) {
+                    timeRangeSelect.value = this.timeRange.toString();
+                }
+            }
+            
+            loadData() {
+                const data = localStorage.getItem('electronicComponents');
+                if (data) {
+                    this.components = JSON.parse(data);
+                }
+            }
+            
+            bindEvents() {
+                document.getElementById('refreshDataBtn').addEventListener('click', () => {
+                    this.refreshData();
+                });
+
+                document.getElementById('exportReportBtn').addEventListener('click', () => {
+                    this.exportReport();
+                });
+
+                document.getElementById('timeRange').addEventListener('change', (e) => {
+                    this.timeRange = parseInt(e.target.value);
+                    // 保存到 localStorage
+                    localStorage.setItem('statisticsTimeRange', this.timeRange.toString());
+                    this.updateCharts();
+                });
+            }
+            
+            initAnimations() {
+                anime({
+                    targets: '.fade-in',
+                    opacity: [0, 1],
+                    translateY: [20, 0],
+                    delay: anime.stagger(100),
+                    duration: 600,
+                    easing: 'easeOutQuart'
+                });
+            }
+            
+            initCharts() {
+                this.initStockTrendChart();
+                this.initCategoryChart();
+                this.initStockStatusChart();
+                this.renderUsageRanking();
+            }
+            
+            initStockTrendChart() {
+                const chart = echarts.init(document.getElementById('stockTrendChart'));
+
+                // 根据时间范围从历史记录生成真实数据
+                const days = this.timeRange;
+                const dates = [];
+                const totalStock = [];
+                const newAdditions = [];
+
+                // 获取历史记录
+                const checkoutHistory = JSON.parse(localStorage.getItem('checkoutHistory') || '[]');
+                const inboundHistory = JSON.parse(localStorage.getItem('inboundHistory') || '[]');
+
+                // 计算当前总库存
+                const currentTotalStock = this.components.reduce((sum, c) => sum + c.stock, 0);
+
+                // 为每一天生成日期和对应的库存数据
+                // 第一步：按日期分组，计算每日入库和出库量
+                const inboundByDate = {};
+                const checkoutByDate = {};
+                inboundHistory.forEach(record => {
+                    const d = record.timestamp.split('T')[0];
+                    inboundByDate[d] = (inboundByDate[d] || 0) + record.quantity;
+                });
+                checkoutHistory.forEach(record => {
+                    const d = record.timestamp.split('T')[0];
+                    checkoutByDate[d] = (checkoutByDate[d] || 0) + record.quantity;
+                });
+
+                // 第二步：从今天反向推导每日库存
+                // 总库存[today] = 当前总库存
+                // 总库存[yesterday] = 总库存[today] - 入库[today] + 出库[today]
+                // 按此反向推导，从最旧到最新填充数组
+                let stock = currentTotalStock;
+                for (let i = 0; i < days; i++) {
+                    const date = new Date();
+                    date.setDate(date.getDate() - i);  // 从今天往前
+                    const dateStr = date.toISOString().split('T')[0];
+                    const idx = days - 1 - i;  // 最旧日期放索引0，今天放最后
+
+                    const dayIn = inboundByDate[dateStr] || 0;
+                    const dayOut = checkoutByDate[dateStr] || 0;
+
+                    dates[idx] = dateStr;
+                    newAdditions[idx] = dayIn;
+                    totalStock[idx] = stock;
+
+                    // 反向推导前一天库存：减去当天入库，加回当天出库
+                    stock = stock - dayIn + dayOut;
+                }
+                
+                const option = {
+                    backgroundColor: 'transparent',
+                    tooltip: {
+                        trigger: 'axis',
+                        backgroundColor: '#2a2f42',
+                        borderColor: '#00d4ff',
+                        textStyle: { color: '#f1f2f6' }
+                    },
+                    legend: {
+                        data: ['总库存', '新增'],
+                        textStyle: { color: '#a4a6b3' }
+                    },
+                    grid: {
+                        left: '3%',
+                        right: '4%',
+                        bottom: '3%',
+                        containLabel: true
+                    },
+                    xAxis: {
+                        type: 'category',
+                        data: dates,
+                        axisLine: { lineStyle: { color: '#4a5568' } },
+                        axisLabel: { color: '#a4a6b3' }
+                    },
+                    yAxis: {
+                        type: 'value',
+                        axisLine: { lineStyle: { color: '#4a5568' } },
+                        axisLabel: { color: '#a4a6b3' },
+                        splitLine: { lineStyle: { color: '#2a2f42' } }
+                    },
+                    series: [
+                        {
+                            name: '总库存',
+                            type: 'line',
+                            data: totalStock,
+                            smooth: true,
+                            lineStyle: { color: '#00d4ff' },
+                            itemStyle: { color: '#00d4ff' },
+                            areaStyle: {
+                                color: {
+                                    type: 'linear',
+                                    x: 0, y: 0, x2: 0, y2: 1,
+                                    colorStops: [
+                                        { offset: 0, color: 'rgba(0, 212, 255, 0.3)' },
+                                        { offset: 1, color: 'rgba(0, 212, 255, 0.05)' }
+                                    ]
+                                }
+                            }
+                        },
+                        {
+                            name: '新增',
+                            type: 'bar',
+                            data: newAdditions,
+                            itemStyle: { color: '#00ff88' }
+                        }
+                    ]
+                };
+                
+                chart.setOption(option);
+                this.charts.stockTrend = chart;
+            }
+            
+            initCategoryChart() {
+                const chart = echarts.init(document.getElementById('categoryChart'));
+                
+                const categoryData = this.getCategoryDistribution();
+                
+                const option = {
+                    backgroundColor: 'transparent',
+                    tooltip: {
+                        trigger: 'item',
+                        backgroundColor: '#2a2f42',
+                        borderColor: '#00d4ff',
+                        textStyle: { color: '#f1f2f6' }
+                    },
+                    legend: {
+                        orient: 'vertical',
+                        left: 'left',
+                        textStyle: { color: '#a4a6b3' }
+                    },
+                    series: [
+                        {
+                            type: 'pie',
+                            radius: '50%',
+                            data: categoryData,
+                            emphasis: {
+                                itemStyle: {
+                                    shadowBlur: 10,
+                                    shadowOffsetX: 0,
+                                    shadowColor: 'rgba(0, 0, 0, 0.5)'
+                                }
+                            },
+                            itemStyle: {
+                                borderRadius: 8,
+                                borderColor: '#1a1d29',
+                                borderWidth: 2
+                            }
+                        }
+                    ]
+                };
+                
+                chart.setOption(option);
+                this.charts.category = chart;
+            }
+            
+            initStockStatusChart() {
+                const chart = echarts.init(document.getElementById('stockStatusChart'));
+                
+                const statusData = this.getStockStatusDistribution();
+                
+                const option = {
+                    backgroundColor: 'transparent',
+                    tooltip: {
+                        trigger: 'axis',
+                        axisPointer: { type: 'shadow' },
+                        backgroundColor: '#2a2f42',
+                        borderColor: '#00d4ff',
+                        textStyle: { color: '#f1f2f6' }
+                    },
+                    grid: {
+                        left: '3%',
+                        right: '4%',
+                        bottom: '3%',
+                        containLabel: true
+                    },
+                    xAxis: {
+                        type: 'category',
+                        data: ['充足', '预警', '缺货'],
+                        axisLine: { lineStyle: { color: '#4a5568' } },
+                        axisLabel: { color: '#a4a6b3' }
+                    },
+                    yAxis: {
+                        type: 'value',
+                        axisLine: { lineStyle: { color: '#4a5568' } },
+                        axisLabel: { color: '#a4a6b3' },
+                        splitLine: { lineStyle: { color: '#2a2f42' } }
+                    },
+                    series: [
+                        {
+                            type: 'bar',
+                            data: [
+                                { value: statusData.full, itemStyle: { color: '#00ff88' } },
+                                { value: statusData.warning, itemStyle: { color: '#ffb347' } },
+                                { value: statusData.empty, itemStyle: { color: '#ff4757' } }
+                            ],
+                            barWidth: '60%',
+                            itemStyle: {
+                                borderRadius: [4, 4, 0, 0]
+                            }
+                        }
+                    ]
+                };
+                
+                chart.setOption(option);
+                this.charts.stockStatus = chart;
+            }
+            
+            getCategoryDistribution() {
+                const categories = {
+                    resistor: { name: '电阻', color: '#00d4ff' },
+                    capacitor: { name: '电容', color: '#00ff88' },
+                    inductor: { name: '电感', color: '#ffb347' },
+                    transistor: { name: '晶体管', color: '#ff6b35' },
+                    triode: { name: '三极管', color: '#ff6b35' },
+                    mosfet: { name: 'MOS管', color: '#ff6b35' },
+                    diode: { name: '二极管', color: '#ff4757' },
+                    led: { name: 'LED', color: '#00ff88' },
+                    ic: { name: '集成电路', color: '#9c88ff' },
+                    connector: { name: '连接器', color: '#00cec9' },
+                    switch: { name: '开关', color: '#74b9ff' },
+                    crystal: { name: '晶振', color: '#fdcb6e' },
+                    relay: { name: '继电器', color: '#a29bfe' },
+                    transformer: { name: '变压器', color: '#fd79a8' },
+                    sensor: { name: '传感器', color: '#00cec9' },
+                    module: { name: '模块', color: '#e17055' },
+                    other: { name: '其他', color: '#b2bec3' }
+                };
+
+                // 添加中文类别的映射（处理数据中直接存储中文的情况）
+                const chineseCategoryMap = {
+                    '电阻': 'resistor',
+                    '电容': 'capacitor',
+                    '电感': 'inductor',
+                    '晶体管': 'transistor',
+                    '三极管': 'triode',
+                    'MOS管': 'mosfet',
+                    '二极管': 'diode',
+                    'LED': 'led',
+                    '集成电路': 'ic',
+                    '连接器': 'connector',
+                    '开关': 'switch',
+                    '晶振': 'crystal',
+                    '继电器': 'relay',
+                    '变压器': 'transformer',
+                    '传感器': 'sensor',
+                    '模块': 'module',
+                    '其他': 'other'
+                };
+
+                const distribution = {};
+                this.components.forEach(component => {
+                    let categoryKey = component.category || 'other';
+
+                    // 如果类别是中文，转换为英文key
+                    if (chineseCategoryMap[categoryKey]) {
+                        categoryKey = chineseCategoryMap[categoryKey];
+                    }
+
+                    distribution[categoryKey] = (distribution[categoryKey] || 0) + 1;
+                });
+
+                return Object.entries(distribution).map(([key, value]) => ({
+                    value,
+                    name: categories[key]?.name || key,
+                    itemStyle: { color: categories[key]?.color || '#00d4ff' }
+                }));
+            }
+            
+            getStockStatusDistribution() {
+                let full = 0, warning = 0, empty = 0;
+                
+                this.components.forEach(component => {
+                    if (component.stock === 0) {
+                        empty++;
+                    } else if (component.stock <= component.threshold) {
+                        warning++;
+                    } else {
+                        full++;
+                    }
+                });
+                
+                return { full, warning, empty };
+            }
+            
+            renderUsageRanking() {
+                // 获取出库历史记录
+                const checkoutHistory = JSON.parse(localStorage.getItem('checkoutHistory') || '[]');
+
+                // 根据时间范围过滤历史记录
+                const now = new Date();
+                const startDate = new Date();
+                startDate.setDate(now.getDate() - this.timeRange);
+
+                const filteredHistory = checkoutHistory.filter(record => {
+                    const recordDate = new Date(record.timestamp);
+                    return recordDate >= startDate;
+                });
+
+                // 统计每个元器件在指定时间范围内的出库数量
+                const componentUsage = {};
+                filteredHistory.forEach(record => {
+                    if (componentUsage[record.componentName]) {
+                        componentUsage[record.componentName] += record.quantity;
+                    } else {
+                        componentUsage[record.componentName] = record.quantity;
+                    }
+                });
+
+                // 计算最大出库数量，用于归一化
+                const maxUsage = Math.max(...Object.values(componentUsage), 1);
+
+                // 按使用频率排序，取前5个
+                const ranking = this.components
+                    .map((component) => ({
+                        ...component,
+                        usageCount: componentUsage[component.name] || 0,
+                        usageScore: componentUsage[component.name]
+                            ? Math.round((componentUsage[component.name] / maxUsage) * 100)
+                            : 0
+                    }))
+                    .filter(item => item.usageCount > 0) // 只显示有使用记录的元器件
+                    .sort((a, b) => b.usageCount - a.usageCount) // 按使用频率降序排序
+                    .slice(0, 5)
+                    .map((item, index) => ({
+                        ...item,
+                        rank: index + 1
+                    }));
+
+                // 如果没有使用记录，显示提示信息
+                if (ranking.length === 0) {
+                    document.getElementById('usageRanking').innerHTML = `
+                        <div class="text-center py-8">
+                            <div class="w-16 h-16 bg-blue-500/20 rounded-full flex items-center justify-center mx-auto mb-3">
+                                <svg class="w-8 h-8 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                                </svg>
+                            </div>
+                            <p class="text-gray-400">最近${this.timeRange}天暂无使用记录</p>
+                        </div>
+                    `;
+                    return;
+                }
+
+                const rankingHTML = ranking.map(item => {
+                    const stockStatus = item.stock === 0 ? 'text-red-400' : item.stock <= item.threshold ? 'text-yellow-400' : 'text-green-400';
+                    return `
+                    <div class="p-3 bg-gray-800/50 rounded-lg">
+                        <div class="flex items-center justify-between mb-2">
+                            <div class="flex items-center space-x-3">
+                                <div class="w-8 h-8 bg-blue-500/20 rounded-full flex items-center justify-center text-sm font-bold text-blue-400">
+                                    ${item.rank}
+                                </div>
+                                <div>
+                                    <h4 class="font-medium text-white text-sm">${item.name}</h4>
+                                    <p class="text-xs text-gray-400">${item.model}</p>
+                                </div>
+                            </div>
+                            <div class="text-right">
+                                <div class="text-sm font-bold text-green-400">${item.usageCount}次</div>
+                                <div class="text-xs text-gray-400">使用频率</div>
+                            </div>
+                        </div>
+                        <div class="flex items-center justify-between text-xs text-gray-400 mt-2 pt-2 border-t border-gray-700/50">
+                            <div class="flex items-center space-x-4">
+                                <span>参数值: ${item.value || '-'}</span>
+                                <span>位置: ${item.location || '-'}</span>
+                                <span>当前库存: <span class="${stockStatus}">${item.stock}</span></span>
+                            </div>
+                        </div>
+                    </div>
+                    `}).join('');
+
+                document.getElementById('usageRanking').innerHTML = rankingHTML;
+            }
+
+            updateMetrics() {
+                const totalComponents = this.components.length;
+                const totalValue = this.components.reduce((sum, c) => sum + (c.stock * this.getComponentValue(c)), 0);
+                const lowStockCount = this.components.filter(c => c.stock <= c.threshold && c.stock > 0).length;
+                const outOfStockCount = this.components.filter(c => c.stock === 0).length;
+
+                // 获取历史记录，计算本月趋势
+                const checkoutHistory = JSON.parse(localStorage.getItem('checkoutHistory') || '[]');
+                const inboundHistory = JSON.parse(localStorage.getItem('inboundHistory') || '[]');
+
+                // 计算本月的开始时间
+                const now = new Date();
+                const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+                // 计算本月的净变化
+                let monthlyNetChange = 0;
+                let monthlyAdditions = 0;
+                let monthlyOutflows = 0;
+
+                // 计算元器件数量的净变化
+                checkoutHistory.forEach(record => {
+                    const recordDate = new Date(record.timestamp);
+                    if (recordDate >= startOfMonth) {
+                        monthlyOutflows += record.quantity;
+                    }
+                });
+
+                inboundHistory.forEach(record => {
+                    const recordDate = new Date(record.timestamp);
+                    if (recordDate >= startOfMonth) {
+                        monthlyAdditions += record.quantity;
+                    }
+                });
+
+                monthlyNetChange = monthlyAdditions - monthlyOutflows;
+
+                // 计算本月初的估计值（用于计算增长率）
+                const estimatedStartComponents = Math.max(0, totalComponents - (monthlyAdditions - monthlyOutflows > 0 ? 1 : 0));
+                const estimatedStartValue = Math.max(0, totalValue - this.calculateValueChange(checkoutHistory, inboundHistory, startOfMonth));
+
+                // 计算趋势百分比
+                const componentsTrend = estimatedStartComponents > 0
+                    ? ((totalComponents - estimatedStartComponents) / estimatedStartComponents * 100)
+                    : 0;
+                const valueTrend = estimatedStartValue > 0
+                    ? ((totalValue - estimatedStartValue) / estimatedStartValue * 100)
+                    : 0;
+
+                // 动画更新数字
+                this.animateNumber('totalComponentsMetric', totalComponents);
+                this.animateNumber('totalValueMetric', totalValue, '¥');
+                this.animateNumber('lowStockMetric', lowStockCount);
+                this.animateNumber('outOfStockMetric', outOfStockCount);
+
+                // 更新趋势显示
+                this.updateTrendDisplay('totalComponentsTrend', componentsTrend, '%');
+                this.updateTrendDisplay('totalValueTrend', valueTrend, '%');
+                this.updateTrendDisplay('lowStockTrend', 0, '本月'); // 低库存预警变化需要更复杂的逻辑
+                this.updateTrendDisplay('outOfStockTrend', 0, '本月'); // 缺货变化需要更复杂的逻辑
+            }
+
+            // 计算价值变化
+            calculateValueChange(checkoutHistory, inboundHistory, startDate) {
+                let valueChange = 0;
+
+                checkoutHistory.forEach(record => {
+                    const recordDate = new Date(record.timestamp);
+                    if (recordDate >= startDate) {
+                        const component = this.components.find(c => c.name === record.componentName);
+                        if (component) {
+                            valueChange -= record.quantity * this.getComponentValue(component);
+                        }
+                    }
+                });
+
+                inboundHistory.forEach(record => {
+                    const recordDate = new Date(record.timestamp);
+                    if (recordDate >= startDate) {
+                        const component = this.components.find(c => c.name === record.componentName);
+                        if (component) {
+                            valueChange += record.quantity * this.getComponentValue(component);
+                        }
+                    }
+                });
+
+                return valueChange;
+            }
+
+            // 更新趋势显示
+            updateTrendDisplay(elementId, value, suffix) {
+                const element = document.getElementById(elementId);
+                const svg = element.querySelector('svg');
+                const span = element.querySelector('span');
+
+                if (value > 0) {
+                    svg.classList.remove('text-gray-400', 'text-red-400');
+                    svg.classList.add('text-green-400');
+                    svg.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 11l5-5m0 0l5 5m-5-5v12"></path>';
+                    span.classList.remove('text-gray-400', 'text-red-400');
+                    span.classList.add('text-green-400');
+                    span.textContent = `+${value.toFixed(0)}${suffix}`;
+                } else if (value < 0) {
+                    svg.classList.remove('text-gray-400', 'text-green-400');
+                    svg.classList.add('text-red-400');
+                    svg.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 13l-5 5m0 0l-5-5m5 5V6"></path>';
+                    span.classList.remove('text-gray-400', 'text-green-400');
+                    span.classList.add('text-red-400');
+                    span.textContent = `${value.toFixed(0)}${suffix}`;
+                } else {
+                    svg.classList.remove('text-green-400', 'text-red-400');
+                    svg.classList.add('text-gray-400');
+                    svg.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4"></path>';
+                    span.classList.remove('text-green-400', 'text-red-400');
+                    span.classList.add('text-gray-400');
+                    span.textContent = `0${suffix}`;
+                }
+            }
+            
+            animateNumber(elementId, targetValue, prefix = '') {
+                const element = document.getElementById(elementId);
+                const startValue = 0;
+                const duration = 1000;
+                const startTime = Date.now();
+                
+                const updateNumber = () => {
+                    const elapsed = Date.now() - startTime;
+                    const progress = Math.min(elapsed / duration, 1);
+                    // 货币值支持多位小数，非货币值取整
+                    let currentValue;
+                    if (prefix === '¥') {
+                        currentValue = startValue + (targetValue - startValue) * progress;
+                    } else {
+                        currentValue = Math.floor(startValue + (targetValue - startValue) * progress);
+                    }
+                    
+                    if (prefix === '¥') {
+                        // 货币值显示4位小数，去掉尾部多余的0
+                        let str = currentValue.toFixed(4);
+                        str = str.replace(/(\.\d*?)0+$/, '$1').replace(/\.$/, '');
+                        element.textContent = prefix + str;
+                    } else {
+                        element.textContent = prefix + currentValue;
+                    }
+                    
+                    if (progress < 1) {
+                        requestAnimationFrame(updateNumber);
+                    }
+                };
+                
+                updateNumber();
+            }
+            
+            getComponentValue(component) {
+                return component.price || 0;
+            }
+
+            getCategoryName(category) {
+                const names = {
+                    resistor: '电阻',
+                    capacitor: '电容',
+                    inductor: '电感',
+                    transistor: '晶体管',
+                    diode: '二极管',
+                    ic: '集成电路',
+                    connector: '连接器'
+                };
+                return names[category] || category;
+            }
+
+            refreshData() {
+                this.loadData();
+                this.updateMetrics();
+                this.initCharts();
+                this.renderUsageRanking();
+
+                // 刷新动画
+                anime({
+                    targets: '.stats-card',
+                    scale: [1, 1.05, 1],
+                    duration: 300,
+                    easing: 'easeOutQuart'
+                });
+
+                this.showNotification('数据刷新成功！', 'success');
+            }
+            
+            exportReport() {
+                const totalValue = this.components.reduce((sum, c) => sum + (c.stock * this.getComponentValue(c)), 0);
+                const reportData = {
+                    title: '电子元器件管理系统 - 统计报告',
+                    generatedAt: new Date().toISOString(),
+                    summary: {
+                        totalComponents: this.components.length,
+                        totalValue: parseFloat(totalValue.toFixed(4)),
+                        lowStockCount: this.components.filter(c => c.stock <= c.threshold && c.stock > 0).length,
+                        outOfStockCount: this.components.filter(c => c.stock === 0).length
+                    },
+                    categoryDistribution: this.getCategoryDistribution(),
+                    stockStatusDistribution: this.getStockStatusDistribution(),
+                    components: this.components.map(c => ({
+                        name: c.name,
+                        model: c.model,
+                        category: this.getCategoryName(c.category),
+                        stock: c.stock,
+                        threshold: c.threshold,
+                        location: c.location,
+                        value: (c.stock * this.getComponentValue(c)).toFixed(4)
+                    }))
+                };
+                
+                const blob = new Blob([JSON.stringify(reportData, null, 2)], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `statistics-report-${new Date().toISOString().split('T')[0]}.json`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                
+                this.showNotification('报告导出成功！', 'success');
+            }
+            
+            updateCharts() {
+                // 根据时间范围更新图表数据
+                this.initStockTrendChart();
+                this.renderUsageRanking();
+            }
+            
+            showNotification(message, type = 'info') {
+                const notification = document.createElement('div');
+                notification.className = `fixed top-4 right-4 z-50 px-6 py-3 rounded-lg shadow-lg transform translate-x-full transition-transform duration-300 ${
+                    type === 'success' ? 'bg-green-600' : 
+                    type === 'error' ? 'bg-red-600' : 'bg-blue-600'
+                } text-white`;
+                notification.textContent = message;
+                
+                document.body.appendChild(notification);
+                
+                setTimeout(() => {
+                    notification.classList.remove('translate-x-full');
+                }, 100);
+                
+                setTimeout(() => {
+                    notification.classList.add('translate-x-full');
+                    setTimeout(() => {
+                        document.body.removeChild(notification);
+                    }, 300);
+                }, 3000);
+            }
+        }
+        
+        // 初始化
+        document.addEventListener('DOMContentLoaded', () => {
+            window.statisticsManager = new StatisticsManager();
+            
+            // 页面加载动画
+            anime({
+                targets: 'header',
+                translateY: [-50, 0],
+                opacity: [0, 1],
+                duration: 800,
+                easing: 'easeOutQuart'
+            });
+        });
+        
+        // 响应式图表
+        window.addEventListener('resize', () => {
+            Object.values(window.statisticsManager?.charts || {}).forEach(chart => {
+                chart.resize();
+            });
+        });
+    </script>
+</body>
+</html>

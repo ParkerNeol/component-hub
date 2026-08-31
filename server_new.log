@@ -1,0 +1,59 @@
+[Root] 项目根目录: D:\Desktop\component-hub
+
+  🚀 Component Hub 服务启动成功！
+  ───────────────────────────────────
+  地址: http://localhost:5000
+  静态文件服务: ✓
+  LCSC API 代理: ✓
+  Puppeteer 抓取: ✓ (延迟启动，首次请求时初始化)
+  ───────────────────────────────────
+  使用 python 方式仍可用: python -m http.server 5000
+  使用本服务: node server.js
+
+
+[Request] POST /api/data/components (origin: null)
+[Request] POST /api/data/components (origin: null)
+[Request] POST /api/data/components (origin: null)
+[Request] POST /api/data/components (origin: null)
+[Request] GET /api/data/health (origin: 直接访问)
+[Request] GET /api/data/components (origin: 直接访问)
+[Request] GET /api/settings (origin: 直接访问)
+[Request] POST /api/data/components (origin: 直接访问)
+[Request] GET /api/data/components (origin: 直接访问)
+[Request] POST /api/settings (origin: 直接访问)
+[Request] GET /api/settings (origin: 直接访问)
+[Request] POST /api/data/components (origin: 直接访问)
+[Request] POST /api/data/components (origin: 直接访问)
+SyntaxError: Unexpected token '"', ""not-an-object"" is not valid JSON
+    at JSON.parse (<anonymous>)
+    at createStrictSyntaxError (D:\Desktop\component-hub\node_modules\body-parser\lib\types\json.js:165:10)
+    at parse (D:\Desktop\component-hub\node_modules\body-parser\lib\types\json.js:86:15)
+    at D:\Desktop\component-hub\node_modules\body-parser\lib\read.js:128:18
+    at AsyncResource.runInAsyncScope (node:async_hooks:227:14)
+    at invokeCallback (D:\Desktop\component-hub\node_modules\raw-body\index.js:238:16)
+    at done (D:\Desktop\component-hub\node_modules\raw-body\index.js:227:7)
+    at IncomingMessage.onEnd (D:\Desktop\component-hub\node_modules\raw-body\index.js:287:7)
+    at IncomingMessage.emit (node:events:509:28)
+    at endReadableNT (node:internal/streams/readable:1735:12)
+[Request] POST /api/data/components (origin: 直接访问)
+[Request] GET /api/data/components (origin: 直接访问)
+[Request] POST /api/data/components (origin: 直接访问)
+[Request] POST /api/data/components (origin: 直接访问)
+[Request] POST /api/data/components (origin: 直接访问)
+[Request] POST /api/data/components (origin: 直接访问)
+[Request] POST /api/data/components (origin: 直接访问)
+[Request] POST /api/data/components (origin: 直接访问)
+[Request] POST /api/data/components (origin: 直接访问)
+[Request] POST /api/data/components (origin: 直接访问)
+[Request] POST /api/data/components (origin: 直接访问)
+[Request] POST /api/data/components (origin: 直接访问)
+[Request] GET /api/data/components (origin: 直接访问)
+[Request] POST /api/data/components (origin: 直接访问)
+[Request] POST /api/settings (origin: 直接访问)
+[Request] GET /api/data/components (origin: 直接访问)
+[Request] GET /api/data/health (origin: 直接访问)
+[Request] POST /api/data/components (origin: 直接访问)
+[Request] POST /api/data/components (origin: 直接访问)
+[Request] POST /api/data/components (origin: 直接访问)
+[Request] POST /api/data/components (origin: 直接访问)
+[Request] POST /api/data/components (origin: 直接访问)

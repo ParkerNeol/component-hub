@@ -1,0 +1,2079 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>个人电子元器件管理系统</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@splidejs/splide@4.1.4/dist/js/splide.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mqtt@5.3.4/dist/mqtt.min.js"></script>
+    <script src="mqtt-manager.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/@splidejs/splide@4.1.4/dist/css/splide.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            font-family: 'Noto Sans SC', sans-serif;
+        }
+        
+        :root {
+            --bg-primary: #1a1d29;
+            --bg-secondary: #242938;
+            --bg-card: #2a2f42;
+            --accent-primary: #00d4ff;
+            --accent-secondary: #ff6b35;
+            --text-primary: #f1f2f6;
+            --text-secondary: #a4a6b3;
+            --stock-full: #00ff88;
+            --stock-warning: #ffb347;
+            --stock-empty: #ff4757;
+        }
+        
+        body {
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            overflow-x: hidden;
+        }
+        
+        .circuit-bg {
+            background-image: 
+                radial-gradient(circle at 25px 25px, rgba(0, 212, 255, 0.1) 2px, transparent 2px),
+                linear-gradient(90deg, rgba(0, 212, 255, 0.05) 1px, transparent 1px),
+                linear-gradient(rgba(0, 212, 255, 0.05) 1px, transparent 1px);
+            background-size: 50px 50px, 25px 25px, 25px 25px;
+        }
+        
+        .component-card {
+            background: var(--bg-card);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            /* 优化：只对transform和box-shadow使用transition */
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.3s;
+            position: relative;
+            overflow: hidden;
+            /* 优化：启用GPU加速 */
+            will-change: transform;
+        }
+
+        /* 移除hover时的::before动画，减少性能开销 */
+        /* .component-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(0, 212, 255, 0.1), transparent);
+            transition: left 0.5s;
+        }
+
+        .component-card:hover::before {
+            left: 100%;
+        } */
+
+        .component-card:hover {
+            /* 优化：减少transform的复杂度 */
+            transform: translateY(-4px);
+            box-shadow: 0 8px 25px rgba(0, 212, 255, 0.15);
+            border-color: var(--accent-primary);
+        }
+
+        .stock-indicator {
+            position: relative;
+            overflow: hidden;
+        }
+
+        .stock-indicator::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+            animation: shimmer 2s infinite;
+        }
+        
+        @keyframes shimmer {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(100%); }
+        }
+        
+        .search-input {
+            background: var(--bg-secondary);
+            border: 2px solid transparent;
+            border-radius: 12px;
+            transition: all 0.3s ease;
+        }
+        
+        .search-input:focus {
+            border-color: var(--accent-primary);
+            box-shadow: 0 0 20px rgba(0, 212, 255, 0.3);
+            outline: none;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, var(--accent-primary), #0099cc);
+            border: none;
+            border-radius: 8px;
+            color: white;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .btn-primary::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 0;
+            height: 0;
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            transition: all 0.3s ease;
+            transform: translate(-50%, -50%);
+        }
+        
+        .btn-primary:hover::before {
+            width: 300px;
+            height: 300px;
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(0, 212, 255, 0.4);
+        }
+        
+        .btn-secondary {
+            background: transparent;
+            border: 2px solid var(--text-secondary);
+            border-radius: 8px;
+            color: var(--text-secondary);
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+        
+        .btn-secondary:hover {
+            border-color: var(--text-primary);
+            color: var(--text-primary);
+            background: rgba(255, 255, 255, 0.05);
+        }
+        
+        .sidebar {
+            background: var(--bg-secondary);
+            border-right: 1px solid rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+        }
+        
+        .category-item {
+            padding: 8px 10px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border: 1px solid transparent;
+        }
+        
+        .category-item:hover {
+            background: rgba(0, 212, 255, 0.1);
+            border-color: var(--accent-primary);
+        }
+        
+        .category-item.active {
+            background: var(--accent-primary);
+            color: var(--bg-primary);
+        }
+
+        /* 拖拽相关样式 - 优化版 */
+        .category-item {
+            transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1),
+                        box-shadow 0.3s ease,
+                        opacity 0.3s ease,
+                        border-color 0.3s ease,
+                        background-color 0.3s ease;
+            will-change: transform, opacity;
+            position: relative;
+        }
+
+        .category-item.dragging {
+            opacity: 0.25;
+            z-index: 1000;
+        }
+
+        .category-item.drag-over {
+            background: rgba(0, 212, 255, 0.06);
+        }
+
+        /* 插入线 - 统一视觉指示器 */
+        .drag-insert-line {
+            position: absolute;
+            left: 8px;
+            right: 8px;
+            height: 2px;
+            background: var(--accent-primary);
+            z-index: 1001;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.15s ease, top 0.1s ease;
+            box-shadow: 0 0 8px rgba(0, 212, 255, 0.6);
+        }
+
+        .drag-insert-line::before,
+        .drag-insert-line::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 6px;
+            height: 6px;
+            background: var(--accent-primary);
+            border-radius: 50%;
+            box-shadow: 0 0 6px rgba(0, 212, 255, 0.8);
+        }
+
+        .drag-insert-line::before { left: -3px; }
+        .drag-insert-line::after { right: -3px; }
+
+        .drag-insert-line.visible {
+            opacity: 1;
+        }
+
+        /* 弹入动画 */
+        @keyframes springIn {
+            0% { transform: scale(1.05); opacity: 0.7; }
+            50% { transform: scale(0.98); }
+            100% { transform: scale(1); opacity: 1; }
+        }
+
+        .category-item.spring-in {
+            animation: springIn 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        /* 拖拽手柄 */
+        .drag-handle {
+            flex-shrink: 0;
+            user-select: none;
+            cursor: grab;
+            transition: color 0.2s ease, transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+            will-change: transform;
+        }
+
+        .drag-handle:hover {
+            color: var(--accent-primary);
+            transform: scale(1.15);
+        }
+
+        .drag-handle:active {
+            cursor: grabbing;
+            color: var(--accent-primary);
+            transform: scale(1.25);
+        }
+
+        .drag-handle.dragging {
+            opacity: 0.6;
+            transform: scale(1.3);
+        }
+
+        /* 拖拽区域容器 */
+        #categoryList {
+            position: relative;
+        }
+
+        /* 磁吸吸附动画 */
+        @keyframes magneticSnap {
+            0% { transform: scale(1.01); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1.01); }
+        }
+
+        .category-item.snap-target {
+            animation: magneticSnap 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+            transform: scale(1.2);
+        }
+
+        .floating-btn {
+            position: fixed !important;
+            bottom: 24px !important;
+            right: 24px !important;
+            width: 60px !important;
+            height: 60px !important;
+            background: linear-gradient(135deg, var(--accent-secondary), #e55a2b);
+            border-radius: 50%;
+            display: flex !important;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            z-index: 10000 !important;
+            box-shadow: 0 8px 25px rgba(255, 107, 53, 0.4);
+            pointer-events: auto;
+            visibility: visible !important;
+            opacity: 1 !important;
+        }
+
+        .floating-btn:hover {
+            transform: scale(1.1) rotate(90deg);
+            box-shadow: 0 12px 35px rgba(255, 107, 53, 0.6);
+        }
+
+        .floating-btn:active {
+            transform: scale(0.95);
+        }
+        
+        .modal {
+            background: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(10px);
+        }
+        
+        .modal-content {
+            background: var(--bg-secondary);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 16px;
+            box-shadow: 0 25px 50px rgba(0, 0, 0, 0.5);
+        }
+        
+        .quantity-btn {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            border: 2px solid var(--accent-primary);
+            background: transparent;
+            color: var(--accent-primary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: bold;
+        }
+        
+        .quantity-btn:hover {
+            background: var(--accent-primary);
+            color: var(--bg-primary);
+            transform: scale(1.1);
+        }
+        
+        .quantity-btn-compact {
+            width: 26px;
+            height: 26px;
+            border-radius: 50%;
+            border: 2px solid var(--accent-primary);
+            background: transparent;
+            color: var(--accent-primary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: bold;
+            font-size: 14px;
+        }
+        
+        .quantity-btn-compact:hover {
+            background: var(--accent-primary);
+            color: var(--bg-primary);
+            transform: scale(1.1);
+        }
+        
+        .fade-in {
+            opacity: 0;
+            transform: translateY(20px);
+        }
+        
+        .fade-in.visible {
+            opacity: 1;
+            transform: translateY(0);
+            transition: all 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        mark {
+            background: #ffb347 !important;
+            color: #1a1d29 !important;
+            padding: 2px 4px;
+            border-radius: 4px;
+            font-weight: 500;
+        }
+        
+        .border-dashed:hover {
+            border-color: var(--accent-primary) !important;
+            background: rgba(0, 212, 255, 0.05);
+        }
+
+        /* BOM匹配浮动窗样式 */
+        #bomMatchModal {
+            transition: transform 0.3s ease, opacity 0.3s ease;
+        }
+
+        #bomMatchModal.dragging {
+            transition: none;
+            opacity: 0.8;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+        }
+
+        #bomMatchHeader {
+            cursor: move;
+            user-select: none;
+        }
+
+        #bomMatchHeader:active {
+            cursor: grabbing;
+        }
+
+        .bom-match-item {
+            background: var(--bg-card);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 8px;
+            padding: 4px 6px;
+            transition: all 0.2s ease;
+            margin-bottom: 4px;
+        }
+
+        .bom-match-item:hover {
+            border-color: var(--accent-primary);
+            background: rgba(59, 130, 246, 0.08);
+        }
+
+        .bom-match-item.matched {
+            border-left: 3px solid #10b981;
+        }
+
+        .bom-match-item.partial {
+            border-left: 3px solid #f59e0b;
+        }
+
+        .bom-match-item.unmatched {
+            border-left: 3px solid #ef4444;
+            opacity: 0.6;
+        }
+
+        /* BOM项目悬浮提示样式 */
+        .bom-item-tooltip {
+            position: fixed;
+            background: rgba(17, 24, 39, 0.96);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 10px;
+            padding: 0;
+            min-width: 260px;
+            max-width: 480px;
+            z-index: 9999;
+            opacity: 0;
+            transition: opacity 0.15s ease;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(12px);
+        }
+
+        .tooltip-header {
+            background: rgba(0, 212, 255, 0.15);
+            padding: 8px 14px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            font-size: 12px;
+            font-weight: 600;
+            color: #00d4ff;
+            letter-spacing: 0.3px;
+        }
+
+        .tooltip-content {
+            padding: 10px 14px;
+        }
+
+        .tooltip-text {
+            font-size: 12px;
+            color: #e5e7eb;
+            line-height: 1.6;
+            word-wrap: break-word;
+            word-break: break-all;
+        }
+
+        /* BOM详情表格样式 */
+        .bom-detail-grid {
+            display: grid;
+            grid-template-columns: auto 1fr;
+            gap: 3px 12px;
+            font-size: 12px;
+            line-height: 1.7;
+        }
+
+        .bom-detail-label {
+            color: #9ca3af;
+            white-space: nowrap;
+            text-align: right;
+        }
+
+        .bom-detail-value {
+            color: #e5e7eb;
+            word-break: break-all;
+        }
+
+        .bom-detail-value.highlight {
+            color: #60a5fa;
+            font-weight: 500;
+        }
+
+        .bom-detail-divider {
+            border: none;
+            border-top: 1px solid rgba(255, 255, 255, 0.06);
+            margin: 6px 0;
+        }
+
+        .bom-match-summary {
+            font-size: 11px;
+            color: #9ca3af;
+            margin-top: 4px;
+        }
+
+        .bom-match-row {
+            font-size: 11px;
+            line-height: 1.6;
+            padding: 1px 0;
+        }
+
+        .bom-match-row .name {
+            color: #d1d5db;
+        }
+
+        .bom-match-row .conf-high {
+            color: #34d399;
+        }
+
+        .bom-match-row .conf-mid {
+            color: #fbbf24;
+        }
+
+        .bom-match-row .conf-low {
+            color: #f87171;
+        }
+
+        .bom-match-row .reason {
+            color: #9ca3af;
+        }
+
+        /* 可拖动器件详情窗 */
+        .bom-detail-panel {
+            position: fixed;
+            background: rgba(17, 24, 39, 0.97);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: 10px;
+            min-width: 240px;
+            max-width: 420px;
+            z-index: 9998;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(12px);
+            display: none;
+            user-select: none;
+        }
+
+        .bom-detail-panel.dragging {
+            opacity: 0.85;
+            transition: none;
+        }
+
+        .bom-detail-panel-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 8px 14px;
+            background: rgba(0, 212, 255, 0.12);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+            border-radius: 10px 10px 0 0;
+            font-size: 12px;
+            font-weight: 600;
+            color: #00d4ff;
+            cursor: grab;
+            letter-spacing: 0.3px;
+        }
+
+        .bom-detail-panel-header:active {
+            cursor: grabbing;
+        }
+
+        .bom-detail-close-btn {
+            background: none;
+            border: none;
+            color: #6b7280;
+            cursor: pointer;
+            font-size: 14px;
+            line-height: 1;
+            padding: 2px 6px;
+            border-radius: 4px;
+            transition: color 0.15s, background 0.15s;
+        }
+
+        .bom-detail-close-btn:hover {
+            color: #ef4444;
+            background: rgba(239, 68, 68, 0.1);
+        }
+
+        .bom-detail-panel-body {
+            padding: 10px 14px;
+        }
+
+        @keyframes pulse {
+            0%, 100% {
+                transform: scale(1);
+                box-shadow: 0 0 0 0 rgba(0, 212, 255, 0.7);
+            }
+            50% {
+                transform: scale(1.02);
+                box-shadow: 0 0 0 10px rgba(0, 212, 255, 0);
+            }
+        }
+        
+        .border-dashed.dragover {
+            border-color: var(--accent-primary) !important;
+            background: rgba(0, 212, 255, 0.05);
+        }
+        
+        #imagePreview img,
+        #addImagePreview img {
+            max-width: 100%;
+            max-height: 200px;
+            border-radius: 8px;
+            object-fit: cover;
+        }
+        
+        /* 采集清单面板样式 */
+        #collectionPanel {
+            max-height: calc(100vh - 120px);
+            display: flex;
+            flex-direction: column;
+        }
+        
+        #checkoutContent,
+        #inboundContent {
+            flex: 1;
+            overflow-y: auto;
+        }
+        
+        #collectionPanel.collapsed #checkoutContent,
+        #collectionPanel.collapsed #inboundContent,
+        #collectionPanel.collapsed #collectionFooter,
+        #collectionPanel.collapsed #inboundFooter {
+            display: none;
+        }
+        
+        #collectionPanel.collapsed {
+            width: auto;
+        }
+        
+        #collectionPanel.collapsed #collectionToggleIcon {
+            transform: rotate(90deg);
+        }
+        
+        #collectionPanel.dragging {
+            transition: none;
+            opacity: 0.9;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+            z-index: 9999 !important;
+        }
+        
+        #collectionPanelHeader:active {
+            cursor: grabbing;
+        }
+        
+        /* 采集清单项样式 */
+        .collection-item {
+            background: var(--bg-card);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            padding: 12px;
+            transition: all 0.3s ease;
+        }
+        
+        .collection-item:hover {
+            border-color: var(--accent-primary);
+        }
+        
+        /* 全局滚动条样式 - 与页面风格一致 */
+        ::-webkit-scrollbar {
+            width: 10px;
+            height: 10px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: var(--bg-secondary);
+            border-radius: 5px;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: linear-gradient(135deg, var(--accent-primary), #0099cc);
+            border-radius: 5px;
+            border: 2px solid var(--bg-secondary);
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: linear-gradient(135deg, #00e5ff, #00b8e6);
+        }
+
+        /* Firefox 滚动条样式 */
+        * {
+            scrollbar-width: thin;
+            scrollbar-color: var(--accent-primary) var(--bg-secondary);
+        }
+        
+        /* 特定区域更细的滚动条（保持原有功能） */
+        #checkoutContent::-webkit-scrollbar,
+        #inboundContent::-webkit-scrollbar,
+        #checkoutDetails::-webkit-scrollbar,
+        #inboundDetails::-webkit-scrollbar,
+        #categoryList::-webkit-scrollbar,
+        #bomMatchContent::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        /* 标签页样式 */
+        #checkoutTab.active {
+            background: rgba(249, 115, 22, 0.2);
+            color: rgb(251, 146, 60);
+            border-color: rgb(249, 115, 22);
+        }
+
+        #inboundTab.active {
+            background: rgba(34, 197, 94, 0.2);
+            color: rgb(74, 222, 128);
+            border-color: rgb(34, 197, 94);
+        }
+
+        #checkoutTab:not(.active):hover {
+            background: rgba(249, 115, 22, 0.2);
+            color: rgb(251, 146, 60);
+            border-color: rgba(249, 115, 22, 0.5);
+        }
+
+        #inboundTab:not(.active):hover {
+            background: rgba(34, 197, 94, 0.2);
+            color: rgb(74, 222, 128);
+            border-color: rgba(34, 197, 94, 0.5);
+        }
+        
+        @media (max-width: 768px) {
+            .sidebar {
+                position: fixed;
+                left: -100%;
+                top: 0;
+                height: 100vh;
+                z-index: 1000;
+                transition: left 0.3s ease;
+            }
+            
+            .sidebar.open {
+                left: 0;
+            }
+            
+            .component-grid {
+                grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+                gap: 16px;
+            }
+            
+            /* 移动端采集清单面板 */
+            #collectionPanel {
+                top: auto;
+                bottom: 0;
+                right: 0;
+                left: 0;
+                width: 100%;
+                max-height: 60vh;
+                border-radius: 16px 16px 0 0;
+                transform: translateY(100%);
+                z-index: 999;
+            }
+
+            /* 移动端浮动按钮 */
+            .floating-btn {
+                bottom: 80px;
+                right: 20px;
+                z-index: 1002;
+                width: 56px;
+                height: 56px;
+            }
+            
+            #collectionPanel:not(.translate-x-full) {
+                transform: translateY(0);
+            }
+            
+            #collectionPanel.translate-x-full {
+                transform: translateY(100%);
+            }
+            
+            #checkoutContent,
+            #inboundContent {
+                max-height: calc(60vh - 200px);
+            }
+        }
+    </style>
+    <style>
+        /* 隐藏数字输入框的上下箭头 */
+        input[type="number"]::-webkit-outer-spin-button,
+        input[type="number"]::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+        input[type="number"] {
+            -moz-appearance: textfield;
+        }
+    </style>
+</head>
+<body class="circuit-bg min-h-screen">
+    <!-- 头部导航 -->
+    <header class="bg-gray-900/50 backdrop-blur-sm border-b border-gray-700/50 sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-16">
+                <div class="flex items-center space-x-4">
+                    <button id="sidebarToggle" class="lg:hidden p-2 rounded-md text-gray-400 hover:text-white hover:bg-gray-700">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
+                        </svg>
+                    </button>
+                    <h1 class="text-xl font-bold bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">
+                        电子元器件管理系统
+                    </h1>
+                </div>
+                
+                <div class="flex items-center space-x-4">
+                    <div class="relative">
+                        <input 
+                            type="text" 
+                            id="searchInput"
+                            placeholder="搜索元器件..." 
+                            class="search-input w-48 px-3 py-2 text-sm"
+                        >
+                        <svg class="absolute right-3 top-2.5 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                        </svg>
+                    </div>
+                    
+                    <a href="statistics.html" class="p-2 rounded-md text-gray-400 hover:text-white hover:bg-gray-700" title="统计分析">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                        </svg>
+                    </a>
+                    
+                    <button id="historyBtn" class="p-2 rounded-md text-gray-400 hover:text-white hover:bg-gray-700" title="查看最近出入库记录">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                    </button>
+                    
+                    <a href="settings.html" class="p-2 rounded-md text-gray-400 hover:text-white hover:bg-gray-700" title="系统设置">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                        </svg>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <div class="flex min-h-screen">
+        <!-- 侧边栏 -->
+        <aside id="sidebar" class="sidebar w-56 p-5 hidden lg:block">
+            <div class="space-y-6">
+                <!-- 分类筛选 -->
+                <div>
+                    <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">元器件分类</h3>
+                    <div id="categoryList" class="space-y-1 max-h-96 overflow-y-auto pr-1">
+                        <div class="category-item active" data-category="all" draggable="false">
+                            <div class="flex items-center justify-between">
+                                <span class="flex-1">全部</span>
+                                <span class="text-xs bg-gray-600 px-2 py-1 rounded-full" id="count-all">0</span>
+                            </div>
+                        </div>
+                        <div class="category-item" data-category="resistor">
+                            <div class="flex items-center justify-between">
+                                <span class="drag-handle cursor-move text-gray-500 hover:text-gray-300 mr-2" draggable="true">
+                                    <svg class="w-4 h-4 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8h16M4 16h16"></path>
+                                    </svg>
+                                </span>
+                                <span class="flex-1">电阻</span>
+                                <span class="text-xs bg-gray-600 px-2 py-1 rounded-full" id="count-resistor">0</span>
+                            </div>
+                        </div>
+                        <div class="category-item" data-category="capacitor">
+                            <div class="flex items-center justify-between">
+                                <span class="drag-handle cursor-move text-gray-500 hover:text-gray-300 mr-2" draggable="true">
+                                    <svg class="w-4 h-4 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8h16M4 16h16"></path>
+                                    </svg>
+                                </span>
+                                <span class="flex-1">电容</span>
+                                <span class="text-xs bg-gray-600 px-2 py-1 rounded-full" id="count-capacitor">0</span>
+                            </div>
+                        </div>
+                        <div class="category-item" data-category="inductor">
+                            <div class="flex items-center justify-between">
+                                <span class="drag-handle cursor-move text-gray-500 hover:text-gray-300 mr-2" draggable="true">
+                                    <svg class="w-4 h-4 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8h16M4 16h16"></path>
+                                    </svg>
+                                </span>
+                                <span class="flex-1">电感</span>
+                                <span class="text-xs bg-gray-600 px-2 py-1 rounded-full" id="count-inductor">0</span>
+                            </div>
+                        </div>
+                        <div class="category-item" data-category="transistor">
+                            <div class="flex items-center justify-between">
+                                <span class="drag-handle cursor-move text-gray-500 hover:text-gray-300 mr-2" draggable="true">
+                                    <svg class="w-4 h-4 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8h16M4 16h16"></path>
+                                    </svg>
+                                </span>
+                                <span class="flex-1">三极管</span>
+                                <span class="text-xs bg-gray-600 px-2 py-1 rounded-full" id="count-transistor">0</span>
+                            </div>
+                        </div>
+                        <div class="category-item" data-category="mosfet">
+                            <div class="flex items-center justify-between">
+                                <span class="drag-handle cursor-move text-gray-500 hover:text-gray-300 mr-2" draggable="true">
+                                    <svg class="w-4 h-4 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8h16M4 16h16"></path>
+                                    </svg>
+                                </span>
+                                <span class="flex-1">MOS管</span>
+                                <span class="text-xs bg-gray-600 px-2 py-1 rounded-full" id="count-mosfet">0</span>
+                            </div>
+                        </div>
+                        <div class="category-item" data-category="diode">
+                            <div class="flex items-center justify-between">
+                                <span class="drag-handle cursor-move text-gray-500 hover:text-gray-300 mr-2" draggable="true">
+                                    <svg class="w-4 h-4 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8h16M4 16h16"></path>
+                                    </svg>
+                                </span>
+                                <span class="flex-1">二极管</span>
+                                <span class="text-xs bg-gray-600 px-2 py-1 rounded-full" id="count-diode">0</span>
+                            </div>
+                        </div>
+                        <div class="category-item" data-category="led">
+                            <div class="flex items-center justify-between">
+                                <span class="drag-handle cursor-move text-gray-500 hover:text-gray-300 mr-2" draggable="true">
+                                    <svg class="w-4 h-4 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8h16M4 16h16"></path>
+                                    </svg>
+                                </span>
+                                <span class="flex-1">LED</span>
+                                <span class="text-xs bg-gray-600 px-2 py-1 rounded-full" id="count-led">0</span>
+                            </div>
+                        </div>
+                        <div class="category-item" data-category="ic">
+                            <div class="flex items-center justify-between">
+                                <span class="drag-handle cursor-move text-gray-500 hover:text-gray-300 mr-2" draggable="true">
+                                    <svg class="w-4 h-4 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8h16M4 16h16"></path>
+                                    </svg>
+                                </span>
+                                <span class="flex-1">集成电路</span>
+                                <span class="text-xs bg-gray-600 px-2 py-1 rounded-full" id="count-ic">0</span>
+                            </div>
+                        </div>
+                        <div class="category-item" data-category="switch">
+                            <div class="flex items-center justify-between">
+                                <span class="drag-handle cursor-move text-gray-500 hover:text-gray-300 mr-2" draggable="true">
+                                    <svg class="w-4 h-4 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8h16M4 16h16"></path>
+                                    </svg>
+                                </span>
+                                <span class="flex-1">开关</span>
+                                <span class="text-xs bg-gray-600 px-2 py-1 rounded-full" id="count-switch">0</span>
+                            </div>
+                        </div>
+                        <div class="category-item" data-category="crystal">
+                            <div class="flex items-center justify-between">
+                                <span class="drag-handle cursor-move text-gray-500 hover:text-gray-300 mr-2" draggable="true">
+                                    <svg class="w-4 h-4 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8h16M4 16h16"></path>
+                                    </svg>
+                                </span>
+                                <span class="flex-1">晶振</span>
+                                <span class="text-xs bg-gray-600 px-2 py-1 rounded-full" id="count-crystal">0</span>
+                            </div>
+                        </div>
+                        <div class="category-item" data-category="other">
+                            <div class="flex items-center justify-between">
+                                <span class="drag-handle cursor-move text-gray-500 hover:text-gray-300 mr-2" draggable="true">
+                                    <svg class="w-4 h-4 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8h16M4 16h16"></path>
+                                    </svg>
+                                </span>
+                                <span class="flex-1">其他</span>
+                                <span class="text-xs bg-gray-600 px-2 py-1 rounded-full" id="count-other">0</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 子类别筛选 -->
+                <div id="subCategoryFilterSection" class="hidden">
+                    <h3 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">子类别</h3>
+                    <div id="subCategoryFilterContainer" class="flex flex-wrap gap-2"></div>
+                </div>
+
+                <!-- 库存状态筛选 -->
+                <div>
+                    <h3 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">库存状态</h3>
+                    <div class="space-y-2">
+                        <label class="flex items-center space-x-3 cursor-pointer">
+                            <input type="checkbox" class="stock-filter" data-status="full" checked>
+                            <span class="text-sm">充足</span>
+                            <div class="w-3 h-3 rounded-full bg-green-400"></div>
+                        </label>
+                        <label class="flex items-center space-x-3 cursor-pointer">
+                            <input type="checkbox" class="stock-filter" data-status="warning" checked>
+                            <span class="text-sm">预警</span>
+                            <div class="w-3 h-3 rounded-full bg-yellow-400"></div>
+                        </label>
+                        <label class="flex items-center space-x-3 cursor-pointer">
+                            <input type="checkbox" class="stock-filter" data-status="empty" checked>
+                            <span class="text-sm">缺货</span>
+                            <div class="w-3 h-3 rounded-full bg-red-400"></div>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- 分化参数范围筛选 -->
+                <div id="paramFilterSection" class="hidden">
+                    <h3 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">参数筛选</h3>
+                    <div id="paramFilterContainer" class="space-y-3">
+                        <!-- 由 JS 动态生成 -->
+                    </div>
+                    <button id="clearParamFilterBtn" class="w-full text-xs text-blue-400 hover:text-blue-300 mt-2 hidden">
+                        清除参数筛选
+                    </button>
+                </div>
+
+                <!-- 快速操作 -->
+                <div>
+                    <h3 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">快速操作</h3>
+                    <div class="space-y-2">
+                        <a href="add-component.html" class="w-full text-left px-3 py-2 text-sm rounded-md hover:bg-gray-700 transition-colors inline-flex items-center justify-between">
+                            <span>添加元器件</span>
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                            </svg>
+                        </a>
+                        <button id="exportBtn" class="w-full text-left px-3 py-2 text-sm rounded-md hover:bg-gray-700 transition-colors">
+                            导出数据
+                        </button>
+                        <button id="importBtn" class="w-full text-left px-3 py-2 text-sm rounded-md hover:bg-gray-700 transition-colors">
+                            导入数据
+                        </button>
+                        <button id="bomMatchBtn" class="w-full text-left px-3 py-2 text-sm rounded-md hover:bg-gray-700 transition-colors inline-flex items-center justify-between text-blue-400">
+                            <span>BOM智能匹配</span>
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"></path>
+                            </svg>
+                        </button>
+                        <button id="lcscImportBtn" class="w-full text-left px-3 py-2 text-sm rounded-md hover:bg-gray-700 transition-colors inline-flex items-center justify-between text-orange-400">
+                            <span>LCSC订单导入</span>
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+                            </svg>
+                        </button>
+                        <button id="bulkEditBtn" class="w-full text-left px-3 py-2 text-sm rounded-md hover:bg-gray-700 transition-colors inline-flex items-center justify-between text-purple-400">
+                            <span>批量操作</span>
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"></path>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- 主内容区域 -->
+        <main class="flex-1 p-3 sm:p-4 lg:p-6">
+            <!-- 统计卡片 -->
+            <div class="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4 lg:gap-6 mb-3 sm:mb-6 lg:mb-8">
+                <div class="bg-gray-800/50 backdrop-blur-sm rounded-lg p-2.5 sm:p-4 lg:p-6 border border-gray-700/50">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-[10px] sm:text-xs lg:text-sm text-gray-400 truncate">总元器件</p>
+                            <p class="text-base sm:text-xl lg:text-2xl font-bold text-blue-400" id="totalComponents">0</p>
+                        </div>
+                        <div class="w-7 h-7 sm:w-10 sm:h-10 lg:w-12 lg:h-12 bg-blue-500/20 rounded-lg flex items-center justify-center shrink-0">
+                            <svg class="w-4 h-4 sm:w-5 sm:h-5 lg:w-6 lg:h-6 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path>
+                            </svg>
+                        </div>
+                    </div>
+                </div>
+                
+                <div id="lowStockCard" class="bg-gray-800/50 backdrop-blur-sm rounded-lg p-2.5 sm:p-4 lg:p-6 border border-gray-700/50 cursor-pointer hover:bg-gray-700/50 transition-all duration-200" onclick="componentManager.toggleStockFilterFromCard('warning')">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-[10px] sm:text-xs lg:text-sm text-gray-400 truncate">低库存预警</p>
+                            <p class="text-base sm:text-xl lg:text-2xl font-bold text-yellow-400" id="lowStockCount">0</p>
+                        </div>
+                        <div class="w-7 h-7 sm:w-10 sm:h-10 lg:w-12 lg:h-12 bg-yellow-500/20 rounded-lg flex items-center justify-center shrink-0">
+                            <svg class="w-4 h-4 sm:w-5 sm:h-5 lg:w-6 lg:h-6 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"></path>
+                            </svg>
+                        </div>
+                    </div>
+                </div>
+                
+                <div id="outOfStockCard" class="bg-gray-800/50 backdrop-blur-sm rounded-lg p-2.5 sm:p-4 lg:p-6 border border-gray-700/50 cursor-pointer hover:bg-gray-700/50 transition-all duration-200" onclick="componentManager.toggleStockFilterFromCard('empty')">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-[10px] sm:text-xs lg:text-sm text-gray-400 truncate">缺货元器件</p>
+                            <p class="text-base sm:text-xl lg:text-2xl font-bold text-red-400" id="outOfStockCount">0</p>
+                        </div>
+                        <div class="w-7 h-7 sm:w-10 sm:h-10 lg:w-12 lg:h-12 bg-red-500/20 rounded-lg flex items-center justify-center shrink-0">
+                            <svg class="w-4 h-4 sm:w-5 sm:h-5 lg:w-6 lg:h-6 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                            </svg>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="bg-gray-800/50 backdrop-blur-sm rounded-lg p-2.5 sm:p-4 lg:p-6 border border-gray-700/50">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-[10px] sm:text-xs lg:text-sm text-gray-400 truncate">总库存价值</p>
+                            <p class="text-base sm:text-xl lg:text-2xl font-bold text-green-400" id="totalValue">¥0</p>
+                        </div>
+                        <div class="w-7 h-7 sm:w-10 sm:h-10 lg:w-12 lg:h-12 bg-green-500/20 rounded-lg flex items-center justify-center shrink-0">
+                            <svg class="w-4 h-4 sm:w-5 sm:h-5 lg:w-6 lg:h-6 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1"></path>
+                            </svg>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 元器件网格 -->
+            <div id="componentGrid" class="component-grid grid grid-cols-2 lg:grid-cols-5 gap-2 sm:gap-4 lg:gap-6">
+                <!-- 元器件卡片将通过JavaScript动态生成 -->
+            </div>
+
+            <!-- 分页器 -->
+            <div id="pagination"></div>
+
+            <!-- 空状态 -->
+            <div id="emptyState" class="hidden text-center py-6 sm:py-12">
+                <div class="w-16 h-16 sm:w-24 sm:h-24 mx-auto mb-3 sm:mb-4 bg-gray-800 rounded-full flex items-center justify-center">
+                    <svg class="w-8 h-8 sm:w-12 sm:h-12 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path>
+                    </svg>
+                </div>
+                <h3 class="text-base sm:text-lg font-medium text-gray-400 mb-1 sm:mb-2">暂无元器件数据</h3>
+                <p class="text-xs sm:text-sm text-gray-500 mb-3 sm:mb-4">点击右下角的 + 按钮添加第一个元器件</p>
+                <a href="add-component.html" id="addFirstComponent" class="btn-primary px-6 py-2 inline-block">
+                    添加元器件
+                </a>
+            </div>
+        </main>
+    </div>
+
+    <!-- 采集/入库清单面板 -->
+    <div id="collectionPanel" class="fixed top-14 sm:top-16 right-1 sm:right-2 w-[calc(100vw-8px)] sm:w-80 max-w-sm bg-gray-800/95 backdrop-blur-md border border-gray-700 rounded-lg shadow-2xl z-40 transition-all duration-300 transform translate-x-full">
+        <div id="collectionPanelHeader" class="p-3 border-b border-gray-700 cursor-move select-none">
+            <div class="flex items-center justify-between mb-2">
+                <div class="flex items-center space-x-2">
+                    <svg class="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path>
+                    </svg>
+                    <h3 class="text-sm font-semibold text-white">清单</h3>
+                </div>
+                <div class="flex items-center space-x-1">
+                    <button id="clearCollectionBtn" class="p-1 rounded hover:bg-gray-700 transition-colors" title="清空">
+                        <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                        </svg>
+                    </button>
+                    <button id="toggleCollectionPanel" class="p-1 rounded hover:bg-gray-700 transition-colors" title="折叠">
+                        <svg id="collectionToggleIcon" class="w-4 h-4 text-gray-400 transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 5l7 7-7 7M5 5l7 7-7 7"></path>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        
+            <!-- 标签页切换 -->
+            <div class="flex space-x-1">
+                <button id="checkoutTab" class="flex-1 py-1.5 px-2 rounded text-xs font-medium transition-all duration-300 bg-gray-700 text-gray-400 border border-gray-600">
+                    <span class="flex items-center justify-center space-x-1">
+                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"></path>
+                        </svg>
+                        <span>出库</span>
+                    </span>
+                </button>
+                <button id="inboundTab" class="flex-1 py-1.5 px-2 rounded text-xs font-medium transition-all duration-300 bg-gray-700 text-gray-400 border border-gray-600">
+                    <span class="flex items-center justify-center space-x-1">
+                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path>
+                        </svg>
+                        <span>入库</span>
+                    </span>
+                </button>
+            </div>
+        </div>
+    
+        <!-- 出库清单内容 -->
+        <div id="checkoutContent" class="p-2 max-h-80 overflow-y-auto">
+            <div id="collectionEmpty" class="text-center py-6 text-gray-500">
+                <svg class="w-8 h-8 mx-auto mb-1 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"></path>
+                </svg>
+                <p class="text-xs">清单为空</p>
+            </div>
+            <div id="collectionList" class="space-y-1 hidden">
+                <!-- 出库清单项将在这里动态生成 -->
+            </div>
+        </div>
+    
+        <!-- 入库清单内容 -->
+        <div id="inboundContent" class="p-2 max-h-80 overflow-y-auto hidden">
+            <div id="inboundEmpty" class="text-center py-6 text-gray-500">
+                <svg class="w-8 h-8 mx-auto mb-1 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"></path>
+                </svg>
+                <p class="text-xs">清单为空</p>
+            </div>
+            <div id="inboundList" class="space-y-1 hidden">
+                <!-- 入库清单项将在这里动态生成 -->
+            </div>
+        </div>
+    
+        <!-- 出库清单底部 -->
+        <div id="collectionFooter" class="p-2 border-t border-gray-700 bg-gray-800/50">
+            <div class="flex items-center justify-between mb-1 text-xs">
+                <span class="text-gray-400">总计</span>
+                <div class="flex items-center space-x-2">
+                    <span id="collectionCount" class="bg-orange-500 text-white text-xs px-1.5 py-0.5 rounded-full">0项</span>
+                    <span id="totalQuantity" class="text-white font-medium">0</span>
+                </div>
+            </div>
+            <button id="batchCheckoutBtn" class="w-full py-1.5 text-xs font-medium rounded transition-all duration-300 bg-orange-500 hover:bg-orange-600 text-white">
+                批量出库
+            </button>
+        </div>
+    
+        <!-- 入库清单底部 -->
+        <div id="inboundFooter" class="p-2 border-t border-gray-700 bg-gray-800/50 hidden">
+            <div class="flex items-center justify-between mb-1 text-xs">
+                <span class="text-gray-400">总计</span>
+                <div class="flex items-center space-x-2">
+                    <span id="inboundCount" class="bg-green-500 text-white text-xs px-1.5 py-0.5 rounded-full">0项</span>
+                    <span id="inboundTotalQuantity" class="text-white font-medium">0</span>
+                </div>
+            </div>
+            <button id="batchInboundBtn" class="w-full py-1.5 text-xs font-medium rounded transition-all duration-300 bg-green-500 hover:bg-green-600 text-white">
+                批量入库
+            </button>
+        </div>
+    </div>
+
+    <!-- 出库确认对话框 -->
+    <div id="checkoutConfirmModal" class="modal fixed inset-0 z-50 hidden">
+        <div class="flex items-center justify-center min-h-screen p-4">
+            <div class="modal-content max-w-md w-full">
+                <div class="p-6">
+                    <div class="text-center mb-6">
+                        <div class="w-16 h-16 mx-auto mb-4 bg-orange-500/20 rounded-full flex items-center justify-center">
+                            <svg class="w-8 h-8 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                            </svg>
+                        </div>
+                        <h3 class="text-xl font-bold text-white mb-2">确认批量出库</h3>
+                        <p class="text-gray-400" id="checkoutConfirmText">即将出库 0 种元器件，共 0 个</p>
+                    </div>
+
+                    <div id="checkoutDetails" class="bg-gray-700/50 rounded-lg p-4 mb-6 max-h-48 overflow-y-auto">
+                        <!-- 出库详情将在这里显示 -->
+                    </div>
+
+                    <div class="flex space-x-3">
+                        <button id="cancelCheckout" class="flex-1 btn-secondary py-2.5 text-sm">
+                            取消
+                        </button>
+                        <button id="confirmCheckout" class="flex-1 py-2.5 text-sm font-medium rounded-lg transition-all duration-300 bg-orange-500 hover:bg-orange-600 text-white">
+                            确认出库
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 入库确认对话框 -->
+    <div id="inboundConfirmModal" class="modal fixed inset-0 z-50 hidden">
+        <div class="flex items-center justify-center min-h-screen p-4">
+            <div class="modal-content max-w-md w-full">
+                <div class="p-6">
+                    <div class="text-center mb-6">
+                        <div class="w-16 h-16 mx-auto mb-4 bg-green-500/20 rounded-full flex items-center justify-center">
+                            <svg class="w-8 h-8 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+                            </svg>
+                        </div>
+                        <h3 class="text-xl font-bold text-white mb-2">确认批量入库</h3>
+                        <p class="text-gray-400" id="inboundConfirmText">即将入库 0 种元器件，共 0 个</p>
+                    </div>
+
+                    <div id="inboundDetails" class="bg-gray-700/50 rounded-lg p-4 mb-6 max-h-48 overflow-y-auto">
+                        <!-- 入库详情将在这里显示 -->
+                    </div>
+
+                    <div class="flex space-x-3">
+                        <button id="cancelInbound" class="flex-1 btn-secondary py-2.5 text-sm">
+                            取消
+                        </button>
+                        <button id="confirmInbound" class="flex-1 py-2.5 text-sm font-medium rounded-lg transition-all duration-300 bg-green-500 hover:bg-green-600 text-white">
+                            确认入库
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 出入库历史记录模态框 -->
+    <div id="historyModal" class="modal fixed inset-0 z-50 hidden">
+        <div class="flex items-center justify-center min-h-screen p-4">
+            <div class="modal-content max-w-3xl w-full max-h-[85vh] overflow-y-auto">
+                <div class="p-6">
+                    <div class="flex items-center justify-between mb-6">
+                        <h2 class="text-2xl font-bold text-white">出入库历史记录</h2>
+                        <button id="closeHistoryModal" class="p-2 hover:bg-gray-700 rounded-lg transition-colors">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                            </svg>
+                        </button>
+                    </div>
+
+                    <!-- 筛选标签 -->
+                    <div class="flex items-center justify-between mb-6">
+                        <div class="flex space-x-2">
+                            <button id="filterAll" class="filter-btn px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300 bg-blue-500 text-white">
+                                全部
+                            </button>
+                            <button id="filterCheckout" class="filter-btn px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300 bg-gray-700 text-gray-400 hover:bg-orange-500/20 hover:text-orange-400">
+                                出库
+                            </button>
+                            <button id="filterInbound" class="filter-btn px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300 bg-gray-700 text-gray-400 hover:bg-green-500/20 hover:text-green-400">
+                                入库
+                            </button>
+                        </div>
+                        <div class="flex space-x-2">
+                            <button id="clearHistoryAll" class="px-3 py-1.5 text-xs rounded-lg bg-red-500/20 text-red-400 hover:bg-red-500/40 transition-colors">
+                                清空全部
+                            </button>
+                            <button id="clearHistoryCheckout" class="px-3 py-1.5 text-xs rounded-lg bg-orange-500/20 text-orange-400 hover:bg-orange-500/40 transition-colors">
+                                清空出库
+                            </button>
+                            <button id="clearHistoryInbound" class="px-3 py-1.5 text-xs rounded-lg bg-green-500/20 text-green-400 hover:bg-green-500/40 transition-colors">
+                                清空入库
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- 历史记录列表 -->
+                    <div id="historyList" class="space-y-3">
+                        <!-- 历史记录项将在这里动态生成 -->
+                    </div>
+
+                    <!-- 空状态 -->
+                    <div id="historyEmpty" class="text-center py-12 text-gray-400 hidden">
+                        <svg class="w-16 h-16 mx-auto mb-4 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                        <p class="text-lg font-medium">暂无历史记录</p>
+                        <p class="text-sm mt-2">首次进行出入库操作后将显示记录</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 元器件变动记录模态框 -->
+    <div id="componentHistoryModal" class="modal fixed inset-0 z-[60] hidden">
+        <div class="flex items-center justify-center min-h-screen p-4">
+            <div class="modal-content max-w-lg w-full max-h-[85vh] overflow-y-auto">
+                <div class="p-6">
+                    <div class="flex items-center justify-between mb-6">
+                        <h2 class="text-xl font-bold text-white" id="componentHistoryTitle">变动记录</h2>
+                        <button id="closeComponentHistory" class="p-2 hover:bg-gray-700 rounded-lg transition-colors">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                            </svg>
+                        </button>
+                    </div>
+
+                    <div id="componentHistoryList" class="space-y-3">
+                    </div>
+
+                    <div id="componentHistoryEmpty" class="text-center py-12 text-gray-400 hidden">
+                        <svg class="w-16 h-16 mx-auto mb-4 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                        <p class="text-lg font-medium">暂无变动记录</p>
+                        <p class="text-sm mt-2">该元器件尚未进行出入库操作</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 元器件详情模态框 -->
+    <div id="componentModal" class="modal fixed inset-0 z-50 hidden">
+        <div class="flex items-center justify-center min-h-screen p-4">
+            <div class="modal-content max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+                <div class="p-6">
+                    <div class="flex items-center justify-between mb-6">
+                        <h2 class="text-2xl font-bold" id="modalTitle">元器件详情</h2>
+                        <div class="flex items-center space-x-2">
+                            <button id="componentHistoryBtn" class="p-2 hover:bg-gray-700 rounded-lg transition-colors" title="变动记录">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                </svg>
+                            </button>
+                            <button id="closeModal" class="p-2 hover:bg-gray-700 rounded-lg transition-colors">
+                                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                                </svg>
+                            </button>
+                    </div>
+                    </div>
+
+                    <form id="componentForm" class="space-y-6">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-300 mb-2">元器件名称</label>
+                                <input type="text" id="componentName" class="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:border-blue-400 focus:outline-none">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-300 mb-2">型号规格</label>
+                                <input type="text" id="componentModel" class="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:border-blue-400 focus:outline-none">
+                            </div>
+                        </div>
+                        
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-300 mb-2">品牌</label>
+                                <input type="text" id="componentBrand" placeholder="如: 村田(Murata)、国巨(Yageo)" class="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:border-blue-400 focus:outline-none">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-300 mb-2">商品编码</label>
+                                <input type="text" id="componentProductCode" placeholder="如：PNP-2024-001" class="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:border-blue-400 focus:outline-none">
+                            </div>
+                        </div>
+                        
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-300 mb-2">类别</label>
+                                <select id="componentCategory" class="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:border-blue-400 focus:outline-none">
+                                    <option value="resistor">电阻</option>
+                                    <option value="capacitor">电容</option>
+                                    <option value="inductor">电感</option>
+                                    <option value="transistor">三极管</option>
+                                    <option value="mosfet">MOS管</option>
+                                    <option value="diode">二极管</option>
+                                    <option value="led">LED</option>
+                                    <option value="ic">集成电路</option>
+                                    <option value="switch">开关</option>
+                                    <option value="crystal">晶振</option>
+                                    <option value="other">其他</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-300 mb-2">子类别</label>
+                                <select id="componentSubCategory" class="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:border-blue-400 focus:outline-none">
+                                    <option value="">请先选择类别</option>
+                                </select>
+                            </div>
+                            <div id="paramFields">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-300 mb-2">参数值</label>
+                                    <input type="text" id="componentValue" placeholder="如: 1kΩ, 100μF" class="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:border-blue-400 focus:outline-none">
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-300 mb-2">当前库存</label>
+                                <input type="number" id="componentStock" min="0" class="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:border-blue-400 focus:outline-none">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-300 mb-2">预警阈值</label>
+                                <input type="number" id="componentThreshold" min="0" class="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:border-blue-400 focus:outline-none">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-300 mb-2">价格（元）</label>
+                                <input type="number" id="componentPrice" min="0" step="any" placeholder="可选" class="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:border-blue-400 focus:outline-none">
+                            </div>
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-gray-300 mb-2">存放位置</label>
+                            <input type="text" id="componentLocation" placeholder="如: A1-3, B2-5" class="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:border-blue-400 focus:outline-none">
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-gray-300 mb-2">备注信息</label>
+                            <textarea id="componentNotes" rows="3" class="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:border-blue-400 focus:outline-none"></textarea>
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-gray-300 mb-2">元器件图片</label>
+                            <input type="url" id="componentImage" placeholder="https://example.com/image.jpg" class="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:border-blue-400 focus:outline-none">
+                            <p class="text-xs text-gray-500 mt-1">可选：输入图片的在线链接，留空则使用默认图片</p>
+                            <div id="imagePreview" class="mt-3 hidden">
+                                <div class="flex gap-4 items-start">
+                                    <!-- 原图片区域 -->
+                                    <div id="imagePreviewContainer" class="relative w-48 h-48 rounded-lg overflow-hidden bg-gray-700 border border-gray-600 shadow-lg">
+                                        <img id="imagePreviewImg" src="" alt="元器件图片" class="w-full h-full object-contain">
+                                        <div id="lensBox" class="absolute border-2 border-blue-400 bg-blue-400/20 pointer-events-none hidden rounded-sm shadow-md"></div>
+                                    </div>
+                                    <!-- 放大预览区域 -->
+                                    <div id="zoomPreview" class="relative w-48 h-48 rounded-lg overflow-hidden bg-gray-800 border-2 border-blue-400/50 shadow-xl hidden">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-gray-300 mb-2">数据手册</label>
+                            <div class="space-y-2">
+                                <input type="url" id="componentDatasheet" placeholder="https://example.com/datasheet.pdf" class="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:border-blue-400 focus:outline-none">
+                                <p class="text-xs text-gray-500">可选：输入数据手册在线链接</p>
+                                <div id="datasheetPreview" class="hidden">
+                                    <a id="datasheetLink" href="#" target="_blank" rel="noopener noreferrer" class="inline-flex items-center space-x-2 bg-blue-600 hover:bg-blue-700 text-white text-sm px-3 py-1.5 rounded-lg transition-colors">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
+                                        </svg>
+                                        <span>打开链接</span>
+                                    </a>
+                                </div>
+                                <div class="flex items-center space-x-2">
+                                    <span class="text-gray-500 text-sm">或</span>
+                                    <label class="cursor-pointer bg-gray-600 hover:bg-gray-500 text-white text-sm px-3 py-1.5 rounded-lg transition-colors inline-flex items-center space-x-1">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path>
+                                        </svg>
+                                        <span>上传本地文件</span>
+                                        <input type="file" id="componentDatasheetFile" accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.png,.jpg,.jpeg" class="hidden">
+                                    </label>
+                                </div>
+                                <div id="datasheetFileInfo" class="hidden flex items-center justify-between bg-gray-700 rounded-lg p-2">
+                                    <div class="flex items-center space-x-2 truncate flex-1">
+                                        <svg class="w-4 h-4 text-blue-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                                        </svg>
+                                        <span id="datasheetFileName" class="text-sm text-gray-300 truncate"></span>
+                                    </div>
+                                    <div class="flex items-center space-x-1 shrink-0">
+                                        <button data-action="download-datasheet" class="text-blue-400 hover:text-blue-300 p-1" title="下载文件" onclick="componentManager.downloadDatasheetFile(componentManager.editingComponent?.id)">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+                                            </svg>
+                                        </button>
+                                        <button class="text-red-400 hover:text-red-300 p-1" title="移除文件" onclick="componentManager.removeDatasheetFile()">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                                            </svg>
+                                        </button>
+                                    </div>
+                                </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="flex justify-end space-x-4">
+                            <button type="button" id="deleteComponent" class="px-6 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors">
+                                删除
+                            </button>
+                            <button type="submit" class="btn-primary px-6 py-2">
+                                保存
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 添加元器件模态框 -->
+    <div id="addComponentModal" class="modal fixed inset-0 z-50 hidden">
+        <div class="flex items-center justify-center min-h-screen p-4">
+            <div class="modal-content max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+                <div class="p-6">
+                    <div class="flex items-center justify-between mb-6">
+                        <h2 class="text-2xl font-bold">添加元器件</h2>
+                        <button id="closeAddModal" class="p-2 hover:bg-gray-700 rounded-lg transition-colors">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                            </svg>
+                        </button>
+                    </div>
+                    
+                    <form id="addComponentForm" class="space-y-6">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-300 mb-2">元器件名称 *</label>
+                                <input type="text" id="addComponentName" required class="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:border-blue-400 focus:outline-none">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-300 mb-2">型号规格 *</label>
+                                <input type="text" id="addComponentModel" required class="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:border-blue-400 focus:outline-none">
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-300 mb-2">品牌</label>
+                                <input type="text" id="addComponentBrand" placeholder="如：Murata" class="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:border-blue-400 focus:outline-none">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-300 mb-2">商品编码</label>
+                                <input type="text" id="addComponentProductCode" placeholder="如：PNP-2024-001" class="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:border-blue-400 focus:outline-none">
+                            </div>
+                        </div>
+                        
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-300 mb-2">类别 *</label>
+                                <select id="addComponentCategory" required class="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:border-blue-400 focus:outline-none">
+                                    <option value="">请选择类别</option>
+                                    <option value="resistor">电阻</option>
+                                    <option value="capacitor">电容</option>
+                                    <option value="inductor">电感</option>
+                                    <option value="transistor">三极管</option>
+                                    <option value="mosfet">MOS管</option>
+                                    <option value="diode">二极管</option>
+                                    <option value="led">LED</option>
+                                    <option value="ic">集成电路</option>
+                                    <option value="switch">开关</option>
+                                    <option value="crystal">晶振</option>
+                                    <option value="other">其他</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-300 mb-2">子类别</label>
+                                <select id="addComponentSubCategory" class="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:border-blue-400 focus:outline-none">
+                                    <option value="">请先选择类别</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-300 mb-2">初始库存 *</label>
+                                <input type="number" id="addComponentStock" min="0" required class="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:border-blue-400 focus:outline-none">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-300 mb-2">预警阈值 *</label>
+                                <input type="number" id="addComponentThreshold" min="0" required class="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:border-blue-400 focus:outline-none">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-300 mb-2">价格（元）</label>
+                                <input type="number" id="addComponentPrice" min="0" step="any" placeholder="可选" class="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:border-blue-400 focus:outline-none">
+                            </div>
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-gray-300 mb-2">参数值</label>
+                            <input type="text" id="addComponentValue" placeholder="如: 1kΩ, 100μF" class="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:border-blue-400 focus:outline-none">
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-gray-300 mb-2">存放位置</label>
+                            <input type="text" id="addComponentLocation" placeholder="如: A1-3, B2-5" class="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:border-blue-400 focus:outline-none">
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-gray-300 mb-2">备注信息</label>
+                            <textarea id="addComponentNotes" rows="3" class="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:border-blue-400 focus:outline-none"></textarea>
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-gray-300 mb-2">元器件图片</label>
+                            <input type="url" id="addComponentImage" placeholder="https://example.com/image.jpg" class="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:border-blue-400 focus:outline-none">
+                            <p class="text-xs text-gray-500 mt-1">可选：输入图片的在线链接，留空则使用默认图片</p>
+                            <div id="addImagePreview" class="mt-3 hidden">
+                                <img src="" alt="元器件图片" class="w-48 h-48 object-contain rounded-lg bg-gray-700 border border-gray-600">
+                            </div>
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-gray-300 mb-2">数据手册</label>
+                            <div class="space-y-2">
+                                <input type="url" id="addComponentDatasheet" placeholder="https://example.com/datasheet.pdf" class="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:border-blue-400 focus:outline-none">
+                                <p class="text-xs text-gray-500">可选：输入数据手册在线链接</p>
+                                <div class="flex items-center space-x-2">
+                                    <span class="text-gray-500 text-sm">或</span>
+                                    <label class="cursor-pointer bg-gray-600 hover:bg-gray-500 text-white text-sm px-3 py-1.5 rounded-lg transition-colors inline-flex items-center space-x-1">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path>
+                                        </svg>
+                                        <span>上传本地文件</span>
+                                        <input type="file" id="addComponentDatasheetFile" accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.png,.jpg,.jpeg" class="hidden">
+                                    </label>
+                                </div>
+                                <div id="addDatasheetFileInfo" class="hidden flex items-center justify-between bg-gray-700 rounded-lg p-2">
+                                    <div class="flex items-center space-x-2 truncate flex-1">
+                                        <svg class="w-4 h-4 text-blue-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                                        </svg>
+                                        <span id="addDatasheetFileName" class="text-sm text-gray-300 truncate"></span>
+                                    </div>
+                                    <button class="text-red-400 hover:text-red-300 p-1 shrink-0" title="移除文件" onclick="componentManager.removeAddDatasheetFile()">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                                        </svg>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="flex justify-end space-x-4">
+                            <button type="button" id="cancelAdd" class="px-6 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg transition-colors">
+                                取消
+                            </button>
+                            <button type="submit" class="btn-primary px-6 py-2">
+                                添加
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 文件输入（隐藏） -->
+    <input type="file" id="fileInput" accept=".json" class="hidden">
+
+    <!-- BOM智能匹配浮动面板 -->
+    <div id="bomMatchModal" class="fixed top-20 left-4 w-[320px] bg-gray-800/95 backdrop-blur-md border border-gray-700 rounded-xl shadow-2xl z-45 transition-all duration-300 transform -translate-x-[150%]"
+         style="z-index: 45;">
+        <!-- 头部 -->
+        <div id="bomMatchHeader" class="py-2 px-4 border-b border-gray-700 flex items-center justify-between">
+            <div class="flex items-center space-x-2">
+                <svg class="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
+                </svg>
+                <h3 class="text-sm font-semibold text-white">BOM智能匹配</h3>
+            </div>
+            <div class="flex items-center space-x-1">
+                <button id="toggleBomMatchPanel" class="p-1 rounded hover:bg-gray-700 transition-colors" title="折叠/展开">
+                    <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                    </svg>
+                </button>
+                <button onclick="componentManager.hideBomMatchModal()" class="p-1 rounded hover:bg-gray-700 transition-colors" title="关闭">
+                    <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+        </div>
+
+        <!-- 内容区域 -->
+        <div id="bomMatchContent" class="p-2 max-h-[75vh] overflow-y-auto">
+            <!-- 上传区域 -->
+            <div id="bomUploadArea" class="border-2 border-dashed border-gray-600 rounded-xl p-3 text-center hover:border-blue-400 transition-colors cursor-pointer mb-2">
+                <input type="file" id="bomFileInput" accept=".xlsx,.xls" class="hidden" onchange="componentManager.handleBomFileUpload(this.files[0])">
+                <div class="flex flex-col items-center">
+                    <div class="w-8 h-8 bg-gray-700 rounded-full flex items-center justify-center mb-1">
+                        <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+                        </svg>
+                    </div>
+                    <h3 class="text-xs font-medium text-white mb-1">上传BOM表格</h3>
+                    <p class="text-[10px] text-gray-400 mb-1">支持 .xlsx 和 .xls 格式</p>
+                    <button onclick="document.getElementById('bomFileInput').click()" class="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors text-xs">
+                        选择文件
+                    </button>
+                </div>
+            </div>
+
+            <!-- 匹配结果 -->
+            <div id="bomMatchResults" class="hidden">
+                <div class="flex items-center justify-between mb-1">
+                    <div class="flex items-center gap-1">
+                        <h3 class="text-xs font-semibold text-white">结果</h3>
+                        <span id="bomMatchFull" class="text-xs text-green-400 font-semibold">0</span>
+                        <span class="text-xs text-gray-600">|</span>
+                        <span id="bomMatchPartial" class="text-xs text-yellow-400 font-semibold">0</span>
+                        <span class="text-xs text-gray-600">|</span>
+                        <span id="bomMatchNone" class="text-xs text-red-400 font-semibold">0</span>
+                    </div>
+                    <button onclick="componentManager.resetBomMatch()" class="px-1.5 py-0.5 bg-gray-700 hover:bg-gray-600 text-white rounded transition-colors text-[10px]">
+                        重选
+                    </button>
+                </div>
+
+                <div id="bomMatchList" class="space-y-1">
+                    <!-- 匹配项将在这里动态生成 -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 重新实现的浮动添加按钮 -->
+    <a href="add-component.html"
+       style="position: fixed !important;
+              bottom: 24px !important;
+              right: 24px !important;
+              width: 64px !important;
+              height: 64px !important;
+              background: linear-gradient(135deg, #ff6b35, #e55a2b) !important;
+              border-radius: 50% !important;
+              display: flex !important;
+              align-items: center !important;
+              justify-content: center !important;
+              cursor: pointer !important;
+              z-index: 10000 !important;
+              box-shadow: 0 8px 32px rgba(255, 107, 53, 0.5) !important;
+              pointer-events: auto !important;
+              text-decoration: none !important;
+              transition: transform 0.3s ease, box-shadow 0.3s ease !important;"
+       onmouseover="this.style.transform='scale(1.1) rotate(90deg)'; this.style.boxShadow='0 12px 40px rgba(255, 107, 53, 0.7)';"
+       onmouseout="this.style.transform='scale(1) rotate(0deg)'; this.style.boxShadow='0 8px 32px rgba(255, 107, 53, 0.5)';"
+       onmousedown="this.style.transform='scale(0.95)';"
+       onmouseup="this.style.transform='scale(1.1) rotate(90deg)';">
+        <svg style="width: 32px !important; height: 32px !important; color: white !important;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"></path>
+        </svg>
+    </a>
+
+    <!-- 批量编辑模态框 -->
+    <div id="bulkEditModal" class="modal fixed inset-0 z-50 hidden">
+        <div class="flex items-center justify-center min-h-screen px-4">
+            <div class="fixed inset-0 bg-black/70 backdrop-blur-sm"></div>
+            <div class="bg-gray-800 rounded-xl max-w-6xl w-full max-h-[90vh] overflow-hidden relative z-10 border border-gray-700 modal-content">
+                <div class="sticky top-0 bg-gray-800/95 backdrop-blur-sm p-6 border-b border-gray-700">
+                    <div class="flex items-center justify-between">
+                        <h2 class="text-xl font-bold text-white">批量编辑元器件</h2>
+                        <button id="closeBulkEditModal" class="p-2 rounded-lg hover:bg-gray-700 transition-colors">
+                            <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="p-6 overflow-y-auto max-h-[calc(90vh-180px)]">
+                    <!-- 筛选和搜索 -->
+                    <div class="mb-6 space-y-4">
+                        <div class="flex flex-wrap gap-4">
+                            <div class="flex-1 min-w-[200px]">
+                                <input type="text" id="bulkEditSearch" placeholder="搜索元器件名称、型号..." class="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:border-blue-400 focus:outline-none">
+                            </div>
+                            <select id="bulkEditCategory" class="px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:border-blue-400 focus:outline-none">
+                                <option value="">所有分类</option>
+                                <option value="resistor">电阻</option>
+                                <option value="capacitor">电容</option>
+                                <option value="inductor">电感</option>
+                                <option value="transistor">三极管</option>
+                                <option value="mosfet">MOS管</option>
+                                <option value="diode">二极管</option>
+                                <option value="led">LED</option>
+                                <option value="ic">集成电路</option>
+                                <option value="switch">开关</option>
+                                <option value="crystal">晶振</option>
+                                <option value="other">其他</option>
+                            </select>
+                        </div>
+
+                        <!-- 全选和操作按钮 -->
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center space-x-4">
+                                <label class="flex items-center cursor-pointer">
+                                    <input type="checkbox" id="bulkEditSelectAll" class="w-4 h-4 mr-2">
+                                    <span class="text-gray-300">全选当前页</span>
+                                </label>
+                                <span id="bulkEditSelectedCount" class="text-sm text-blue-400">已选择 0 个元器件</span>
+                            </div>
+                            <div class="flex items-center space-x-2">
+                                <button id="bulkEditClearSelection" class="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-white text-sm rounded-lg transition-colors">
+                                    清空选择
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 元器件列表 -->
+                    <div id="bulkEditComponentList" class="space-y-2 mb-6 max-h-64 overflow-y-auto border border-gray-700 rounded-lg p-2">
+                        <!-- 动态生成 -->
+                    </div>
+
+                    <!-- 批量修改字段 -->
+                    <div class="border-t border-gray-700 pt-6">
+                        <h3 class="text-lg font-semibold text-white mb-4">批量修改字段</h3>
+                        <p class="text-sm text-gray-400 mb-4">选择要修改的字段，只填写的字段会被更新，留空的字段保持不变</p>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-300 mb-2">型号规格</label>
+                                <input type="text" id="bulkEditModel" class="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:border-blue-400 focus:outline-none" placeholder="如：0603">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-300 mb-2">商品编码</label>
+                                <input type="text" id="bulkEditProductCode" class="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:border-blue-400 focus:outline-none" placeholder="如：PNP-2024-001">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-300 mb-2">参数值</label>
+                                <input type="text" id="bulkEditValue" class="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:border-blue-400 focus:outline-none" placeholder="如：10kΩ">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-300 mb-2">存放位置</label>
+                                <input type="text" id="bulkEditLocation" class="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:border-blue-400 focus:outline-none" placeholder="如：A1-3">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-300 mb-2">预警阈值</label>
+                                <input type="number" id="bulkEditThreshold" class="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:border-blue-400 focus:outline-none" placeholder="如：10" min="0">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-300 mb-2">子类别</label>
+                                <select id="bulkEditSubCategory" class="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:border-blue-400 focus:outline-none">
+                                    <option value="">保持不变</option>
+                                </select>
+                            </div>
+                            <div id="bulkEditParamFields" class="md:col-span-2 hidden">
+                                <label class="block text-sm font-medium text-gray-300 mb-2">分化参数</label>
+                                <div id="bulkEditParamFieldsContainer" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <!-- 动态生成 -->
+                                </div>
+                            </div>
+                            <div class="md:col-span-2">
+                                <label class="block text-sm font-medium text-gray-300 mb-2">备注信息</label>
+                                <textarea id="bulkEditNotes" rows="2" class="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:border-blue-400 focus:outline-none" placeholder="如：统一更新备注"></textarea>
+                            </div>
+                            <div class="md:col-span-2">
+                                <label class="block text-sm font-medium text-gray-300 mb-2">元器件图片</label>
+                                <input type="url" id="bulkEditImage" class="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:border-blue-400 focus:outline-none" placeholder="https://example.com/image.jpg">
+                            </div>
+                            <div class="md:col-span-2">
+                                <label class="block text-sm font-medium text-gray-300 mb-2">数据手册链接</label>
+                                <input type="url" id="bulkEditDatasheet" class="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:border-blue-400 focus:outline-none" placeholder="https://example.com/datasheet.pdf">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 操作按钮 -->
+                    <div class="flex justify-between items-center mt-6 pt-6 border-t border-gray-700">
+                        <button id="bulkDeleteBtn" class="px-6 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors">
+                            批量删除
+                        </button>
+                        <div class="flex space-x-4">
+                            <button id="bulkEditCancel" class="px-6 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors">
+                                取消
+                            </button>
+                            <button id="bulkEditSave" class="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors">
+                                批量修改
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- LCSC 订单浏览器弹窗 -->
+    <div id="lcscOrderModal" class="fixed inset-0 z-50 hidden">
+        <div class="flex items-center justify-center min-h-screen p-4">
+            <div class="fixed inset-0 bg-black/70 backdrop-blur-sm" onclick="document.getElementById('lcscOrderModal').classList.add('hidden')"></div>
+            <div class="relative z-10 bg-gray-800 rounded-xl w-full max-w-4xl max-h-[85vh] overflow-hidden">
+                <!-- 头部 -->
+                <div class="p-6 border-b border-gray-700 flex items-center justify-between">
+                    <h2 class="text-xl font-bold text-white flex items-center space-x-2">
+                        <svg class="w-5 h-5 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"></path>
+                        </svg>
+                        <span>立创商城订单导入</span>
+                    </h2>
+                    <button onclick="document.getElementById('lcscOrderModal').classList.add('hidden')" class="text-gray-400 hover:text-white transition-colors">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                        </svg>
+                    </button>
+                </div>
+                <!-- 内容区 -->
+                <div class="p-6 overflow-y-auto modal-body" style="max-height: calc(85vh - 80px);">
+                    <div class="text-center py-12">
+                        <div class="w-10 h-10 mx-auto mb-4">
+                            <svg class="animate-spin text-blue-500 w-10 h-10" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                            </svg>
+                        </div>
+                        <p class="text-gray-400">加载中...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- LCSC 导入向导弹窗 -->
+    <div id="lcscImportModal" class="fixed inset-0 z-50 hidden">
+        <div class="flex items-center justify-center min-h-screen p-4">
+            <div class="fixed inset-0 bg-black/70 backdrop-blur-sm" onclick="document.getElementById('lcscImportModal').classList.add('hidden')"></div>
+            <div class="relative z-10 bg-gray-800 rounded-xl w-full max-w-4xl max-h-[85vh] overflow-hidden">
+                <!-- 头部 -->
+                <div class="p-6 border-b border-gray-700 flex items-center justify-between">
+                    <h2 class="text-xl font-bold text-white flex items-center space-x-2">
+                        <svg class="w-5 h-5 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+                        </svg>
+                        <span>立创订单导入</span>
+                    </h2>
+                    <button onclick="document.getElementById('lcscImportModal').classList.add('hidden')" class="text-gray-400 hover:text-white transition-colors">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                        </svg>
+                    </button>
+                </div>
+                <!-- 内容区 -->
+                <div class="p-6 overflow-y-auto import-wizard-body" style="max-height: calc(85vh - 80px);">
+                    <div class="text-center py-12">
+                        <p class="text-gray-400">准备中...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="main.js?v=20260703e"></script>
+    <script src="lcsc-import.js"></script>
+    <script>
+        // 延迟渲染自定义类别（确保 main.js 渲染完成后再补充）
+        setTimeout(function() {
+            try {
+                var saved = localStorage.getItem('customCategories');
+                if (!saved) return;
+                var customCats = JSON.parse(saved);
+                if (!customCats || !customCats.length) return;
+                var list = document.getElementById('categoryList');
+                if (!list) return;
+                var compData = JSON.parse(localStorage.getItem('electronicComponents') || '[]');
+                var catCounts = {};
+                compData.forEach(function(c) { catCounts[c.category] = (catCounts[c.category] || 0) + 1; });
+                customCats.forEach(function(cat) {
+                    if (list.querySelector('[data-category="' + cat.key.replace(/[^a-z0-9_]/g, '') + '"]')) return;
+                    var count = catCounts[cat.key] || 0;
+                    var div = document.createElement('div');
+                    div.className = 'category-item';
+                    div.setAttribute('data-category', cat.key);
+                    div.innerHTML = '<div class="flex items-center justify-between">' +
+                        '<span class="drag-handle cursor-move text-gray-500 hover:text-gray-300 mr-2" draggable="true">' +
+                        '<svg class="w-4 h-4 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">' +
+                        '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8h16M4 16h16"></path>' +
+                        '</svg></span>' +
+                        '<span class="flex-1">' + (cat.name || cat.key) + '</span>' +
+                        '<span class="text-xs bg-gray-600 px-2 py-1 rounded-full" id="count-' + cat.key + '">' + count + '</span>' +
+                        '</div>';
+                    list.appendChild(div);
+                });
+            } catch(e) {
+                console.warn('加载自定义类别失败:', e);
+            }
+        }, 500);
+    </script>
+</body>
+</html>

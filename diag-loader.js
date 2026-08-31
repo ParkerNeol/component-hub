@@ -1,0 +1,1 @@
+var s=document.createElement('script');s.src='diag-import.js';document.body.appendChild(s);

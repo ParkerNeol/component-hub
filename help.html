@@ -1,0 +1,1399 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>使用文档 - 电子元器件管理系统</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            font-family: 'Noto Sans SC', sans-serif;
+        }
+        
+        :root {
+            --bg-primary: #1a1d29;
+            --bg-secondary: #242938;
+            --bg-card: #2a2f42;
+            --accent-primary: #00d4ff;
+            --accent-secondary: #ff6b35;
+            --text-primary: #f1f2f6;
+            --text-secondary: #a4a6b3;
+        }
+        
+        body {
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            overflow-x: hidden;
+        }
+        
+        .circuit-bg {
+            background-image: 
+                radial-gradient(circle at 25px 25px, rgba(0, 212, 255, 0.1) 2px, transparent 2px),
+                linear-gradient(90deg, rgba(0, 212, 255, 0.05) 1px, transparent 1px),
+                linear-gradient(rgba(0, 212, 255, 0.05) 1px, transparent 1px);
+            background-size: 50px 50px, 25px 25px, 25px 25px;
+        }
+        
+        .doc-card {
+            background: var(--bg-card);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+        }
+        
+        .nav-item {
+            padding: 10px 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border: 1px solid transparent;
+            color: var(--text-secondary);
+        }
+        
+        .nav-item:hover {
+            background: rgba(0, 212, 255, 0.1);
+            border-color: var(--accent-primary);
+            color: var(--text-primary);
+        }
+        
+        .nav-item.active {
+            background: var(--accent-primary);
+            color: var(--bg-primary);
+            font-weight: 500;
+        }
+        
+        .search-input {
+            background: var(--bg-secondary);
+            border: 2px solid transparent;
+            border-radius: 12px;
+            transition: all 0.3s ease;
+            color: var(--text-primary);
+        }
+        
+        .search-input:focus {
+            border-color: var(--accent-primary);
+            box-shadow: 0 0 20px rgba(0, 212, 255, 0.3);
+            outline: none;
+        }
+        
+        .search-input::placeholder {
+            color: var(--text-secondary);
+        }
+        
+        .section-title {
+            color: var(--accent-primary);
+            border-bottom: 2px solid var(--accent-primary);
+            padding-bottom: 8px;
+            margin-bottom: 16px;
+        }
+        
+        .highlight {
+            background: rgba(0, 212, 255, 0.2);
+            padding: 2px 4px;
+            border-radius: 4px;
+        }
+        
+        .hidden-section {
+            display: none;
+        }
+        
+        .sidebar {
+            background: var(--bg-secondary);
+            border-right: 1px solid rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+        }
+        
+        .code-block {
+            background: var(--bg-primary);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            padding: 12px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            color: #00ff88;
+            overflow-x: auto;
+        }
+        
+        .step-number {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 28px;
+            height: 28px;
+            background: var(--accent-primary);
+            color: var(--bg-primary);
+            border-radius: 50%;
+            font-weight: bold;
+            font-size: 14px;
+            margin-right: 8px;
+        }
+        
+        /* 全局滚动条样式 - 与页面风格一致 */
+        ::-webkit-scrollbar {
+            width: 10px;
+            height: 10px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: var(--bg-secondary);
+            border-radius: 5px;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: linear-gradient(135deg, var(--accent-primary), #0099cc);
+            border-radius: 5px;
+            border: 2px solid var(--bg-secondary);
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: linear-gradient(135deg, #00e5ff, #00b8e6);
+        }
+
+        /* Firefox 滚动条样式 */
+        * {
+            scrollbar-width: thin;
+            scrollbar-color: var(--accent-primary) var(--bg-secondary);
+        }
+    </style>
+</head>
+<body class="circuit-bg min-h-screen">
+    <!-- 头部导航 -->
+    <header class="bg-gray-900/50 backdrop-blur-sm border-b border-gray-700/50 sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-16">
+                <div class="flex items-center space-x-4">
+                    <a href="settings.html" class="p-2 rounded-md text-gray-400 hover:text-white hover:bg-gray-700 transition-colors">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
+                        </svg>
+                    </a>
+                    <h1 class="text-xl font-bold bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">
+                        使用文档
+                    </h1>
+                </div>
+                
+                <div class="flex items-center space-x-4">
+                    <div class="relative">
+                        <input 
+                            type="text" 
+                            id="searchInput" 
+                            placeholder="搜索文档内容..." 
+                            class="search-input pl-10 pr-4 py-2 w-64 text-sm"
+                        >
+                        <svg class="w-5 h-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                        </svg>
+                    </div>
+                    <a href="settings.html" class="p-2 rounded-md text-gray-400 hover:text-white hover:bg-gray-700 transition-colors">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                        </svg>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <div class="flex">
+        <!-- 左侧导航 -->
+        <aside class="sidebar w-64 fixed h-[calc(100vh-64px)] overflow-y-auto hidden lg:block">
+            <div class="p-4">
+                <h3 class="text-sm font-semibold text-gray-400 mb-4 uppercase tracking-wider">文档目录</h3>
+                <nav class="space-y-1">
+                    <div class="nav-item active" data-section="quick-start">
+                        快速开始
+                    </div>
+                    <div class="nav-item" data-section="component-management">
+                        元器件管理
+                    </div>
+                    <div class="nav-item" data-section="category-management">
+                        分类管理
+                    </div>
+                    <div class="nav-item" data-section="inventory-management">
+                        库存管理
+                    </div>
+                    <div class="nav-item" data-section="checkout-inbound">
+                        出入库清单
+                    </div>
+                    <div class="nav-item" data-section="bom-match">
+                        BOM智能匹配
+                    </div>
+                    <div class="nav-item" data-section="search">
+                        搜索功能
+                    </div>
+                    <div class="nav-item" data-section="backup-restore">
+                        数据存储与备份
+                    </div>
+                    <div class="nav-item" data-section="lcsc-import">
+                        LCSC订单导入
+                    </div>
+                    <div class="nav-item" data-section="mqtt">
+                        MQTT 通信
+                    </div>
+                    <div class="nav-item" data-section="settings">
+                        系统设置
+                    </div>
+                    <div class="nav-item" data-section="keyboard-shortcuts">
+                        快捷键
+                    </div>
+                    <div class="nav-item" data-section="faq">
+                        常见问题
+                    </div>
+                </nav>
+            </div>
+        </aside>
+
+        <!-- 右侧内容区域 -->
+        <main class="flex-1 lg:ml-64 p-8">
+            <div class="max-w-4xl mx-auto space-y-8">
+                <!-- 快速开始 -->
+                <section id="quick-start" class="doc-section">
+                    <div class="doc-card p-8">
+                        <h2 class="text-2xl font-bold text-white mb-6 section-title">快速开始</h2>
+                        
+                        <div class="space-y-6 text-gray-300">
+                            <p>欢迎使用电子元器件管理系统！本系统专为个人电子爱好者设计，帮助您高效管理元器件库存。</p>
+                            
+                            <h3 class="text-lg font-semibold text-white mt-6 mb-4">首次使用</h3>
+                            <div class="space-y-4">
+                                <div>
+                                    <span class="step-number">1</span>
+                                    <span class="text-gray-300">使用快捷键 <kbd class="px-2 py-0.5 bg-gray-700 rounded text-cyan-400 text-xs">Ctrl+A</kbd> 打开清单面板</span>
+                                </div>
+                                <div>
+                                    <span class="step-number">2</span>
+                                    <span class="text-gray-300">点击清单面板右上角的折叠按钮收起面板，露出元器件卡片</span>
+                                </div>
+                                <div>
+                                    <span class="step-number">3</span>
+                                    <span class="text-gray-300">点击右下角的浮动按钮"+"添加元器件，填写基本信息</span>
+                                </div>
+                                <div>
+                                    <span class="step-number">4</span>
+                                    <span class="text-gray-300">在首页查看元器件列表，使用左侧分类筛选快速定位</span>
+                                </div>
+                                <div>
+                                    <span class="step-number">5</span>
+                                    <span class="text-gray-300">点击元器件卡片的"出库"或"入库"按钮进行库存管理</span>
+                                </div>
+                                <div>
+                                    <span class="step-number">6</span>
+                                    <span class="text-gray-300">在侧边栏点击"历史记录"查看出入库历史，可一键清空</span>
+                                </div>
+                                <div>
+                                    <span class="step-number">7</span>
+                                    <span class="text-gray-300">点击顶部"统计分析"查看库存分布和统计图表</span>
+                                </div>
+                                <div>
+                                    <span class="step-number">8</span>
+                                    <span class="text-gray-300">如需长期备份，点击侧边栏"导出数据"保存JSON文件</span>
+                                </div>
+                            </div>
+
+                            <div class="bg-green-500/10 border border-green-500/30 rounded-lg p-4 mt-6">
+                                <p class="text-green-400 text-sm">
+                                    💡 <strong>提示：</strong>系统会自动保存所有数据到浏览器本地存储，无需手动保存操作。
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 元器件管理 -->
+                <section id="component-management" class="doc-section">
+                    <div class="doc-card p-8">
+                        <h2 class="text-2xl font-bold text-white mb-6 section-title">元器件管理</h2>
+                        
+                        <div class="space-y-6 text-gray-300">
+                            <h3 class="text-lg font-semibold text-white">添加元器件</h3>
+                            <div class="space-y-3">
+                                <p>在首页点击右下角的浮动添加按钮（+），或点击"添加元器件"按钮。</p>
+                                <p><strong>必填项：</strong>名称、型号、分类</p>
+                                <p><strong>可选项：</strong>品牌、商品编号、图片URL、数据手册链接、描述、参数、数量</p>
+                                <p><strong>新增字段说明（v2.3.0）：</strong></p>
+                                <ul class="list-disc ml-6 space-y-1">
+                                    <li><strong>品牌：</strong>元器件的制造商（如 Yageo、Murata、风华高科等），用于更精确的匹配</li>
+                                    <li><strong>商品编号：</strong>LCSC/立创商城料号（如 C12345），用于关联 LCSC 订单导入</li>
+                                </ul>
+                                <div class="bg-blue-500/10 border border-blue-500/30 rounded-lg p-4 mt-4">
+                                    <p class="text-blue-400 text-sm">
+                                        💡 <strong>分化参数：</strong>选择电阻/电容/电感/MOS管/二极管/三极管/LED/晶振品类后，自动显示对应的专属参数输入字段：
+                                    </p>
+                                    <ul class="text-blue-300 text-sm ml-4 mt-2 space-y-1 list-disc">
+                                        <li>电阻：阻值（MΩ/kΩ/Ω）+ 额定功率（W）</li>
+                                        <li>电容：电容值（F/mF/μF/nF/pF）+ 耐压值（V）</li>
+                                        <li>电感：电感量（H/mH/μH）+ 额定电流（A/mA）</li>
+                                        <li>MOS管：漏源击穿电压（V/mV）+ 最大漏极电流（A/mA）</li>
+                                        <li>二极管：最大反向重复峰值电压（V/mV）+ 平均整流电流（A/mA）</li>
+                                        <li>三极管：集电极-发射极击穿电压（V/mV）+ 集电极最大允许电流（A/mA）</li>
+                                        <li>LED：正向压降（V/mV）+ 最大正向电流（A/mA）</li>
+                                        <li>晶振：标称频率（MHz/kHz/Hz）+ 负载电容（pF/nF/μF）</li>
+                                    </ul>
+                                </div>
+                                <div class="bg-green-500/10 border border-green-500/30 rounded-lg p-4 mt-4">
+                                    <p class="text-green-400 text-sm">
+                                        💡 <strong>提示：</strong>填写完信息后可直接按 Enter 键快速添加元器件（不适用于textarea和select元素）。
+                                    </p>
+                                </div>
+                                <div class="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-4 mt-4">
+                                    <p class="text-yellow-400 text-sm">
+                                        ⚠️ <strong>注意：</strong>图片需提供有效的URL链接，暂不支持文件上传。
+                                    </p>
+                                </div>
+                            </div>
+                            
+                            <h3 class="text-lg font-semibold text-white mt-8">编辑元器件</h3>
+                            <div class="space-y-3">
+                                <p>在元器件卡片上点击"查看详情"按钮，在弹出的详情页中可以：</p>
+                                <ul class="list-disc ml-6 space-y-2">
+                                    <li>修改元器件的所有信息</li>
+                                    <li>更新库存数量</li>
+                                    <li>查看数据手册链接（点击"点击打开"按钮）</li>
+                                    <li>预览图片（支持2倍放大镜效果）</li>
+                                </ul>
+                                <div class="bg-green-500/10 border border-green-500/30 rounded-lg p-4 mt-4">
+                                    <p class="text-green-400 text-sm">
+                                        💡 <strong>提示：</strong>修改完信息后可直接按 Enter 键快速保存（不适用于textarea和select元素）。
+                                    </p>
+                                </div>
+                            </div>
+                            
+                            <h3 class="text-lg font-semibold text-white mt-8">批量编辑</h3>
+                            <div class="space-y-3">
+                                <p>在首页勾选多个元器件后，点击"批量编辑"按钮：</p>
+                                <ul class="list-disc ml-6 space-y-2">
+                                    <li>筛选类别后，可批量修改子类别</li>
+                                    <li>筛选类别后，可批量修改分化参数（电阻/电容等品类）</li>
+                                    <li>也可批量修改型号、位置、阈值、备注等通用字段</li>
+                                    <li>支持按品类筛选后再操作</li>
+                                </ul>
+                                <div class="bg-green-500/10 border border-green-500/30 rounded-lg p-4 mt-4">
+                                    <p class="text-green-400 text-sm">
+                                        💡 <strong>提示：</strong>批量编辑弹窗中，留空的字段不会修改，只更新填写的字段。
+                                    </p>
+                                </div>
+                            </div>
+
+                            <h3 class="text-lg font-semibold text-white mt-8">删除元器件</h3>
+                            <div class="space-y-3">
+                                <p>在元器件卡片上点击"删除"按钮，系统会弹出确认提示，确认后即可删除。</p>
+                                <div class="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-4">
+                                    <p class="text-yellow-400 text-sm">
+                                        ⚠️ <strong>提示：</strong>删除操作后可以使用 Ctrl+Z 撤回，但建议重要数据前先导出备份。
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 分类管理 -->
+                <section id="category-management" class="doc-section">
+                    <div class="doc-card p-8">
+                        <h2 class="text-2xl font-bold text-white mb-6 section-title">分类管理</h2>
+                        
+                        <div class="space-y-6 text-gray-300">
+                            <h3 class="text-lg font-semibold text-white">预设分类</h3>
+                            <p>系统内置以下分类：</p>
+                            <div class="grid grid-cols-2 md:grid-cols-3 gap-3 mt-4">
+                                <div class="bg-gray-800/50 rounded-lg p-3 text-center">
+                                    <span class="text-cyan-400">电阻</span>
+                                </div>
+                                <div class="bg-gray-800/50 rounded-lg p-3 text-center">
+                                    <span class="text-cyan-400">电容</span>
+                                </div>
+                                <div class="bg-gray-800/50 rounded-lg p-3 text-center">
+                                    <span class="text-cyan-400">电感</span>
+                                </div>
+                                <div class="bg-gray-800/50 rounded-lg p-3 text-center">
+                                    <span class="text-cyan-400">二极管</span>
+                                </div>
+                                <div class="bg-gray-800/50 rounded-lg p-3 text-center">
+                                    <span class="text-cyan-400">LED</span>
+                                </div>
+                                <div class="bg-gray-800/50 rounded-lg p-3 text-center">
+                                    <span class="text-cyan-400">三极管</span>
+                                </div>
+                                <div class="bg-gray-800/50 rounded-lg p-3 text-center">
+                                    <span class="text-cyan-400">MOS管</span>
+                                </div>
+                                <div class="bg-gray-800/50 rounded-lg p-3 text-center">
+                                    <span class="text-cyan-400">集成电路</span>
+                                </div>
+                                <div class="bg-gray-800/50 rounded-lg p-3 text-center">
+                                    <span class="text-cyan-400">开关</span>
+                                </div>
+                                <div class="bg-gray-800/50 rounded-lg p-3 text-center">
+                                    <span class="text-cyan-400">晶振</span>
+                                </div>
+                                <div class="bg-gray-800/50 rounded-lg p-3 text-center">
+                                    <span class="text-cyan-400">其他</span>
+                                </div>
+                            </div>
+                            
+                            <h3 class="text-lg font-semibold text-white mt-8">类别与子类别</h3>
+                            <div class="space-y-3">
+                                <p>系统内置 11 个元器件品类，并支持自定义类别，实现灵活的分类体系：</p>
+                                <ul class="list-disc ml-6 space-y-2">
+                                    <li><strong>内置类别</strong>：电阻、电容、电感、三极管、MOS管、二极管、LED、集成电路、开关、晶振、其他</li>
+                                    <li><strong>自定义类别</strong>：在<a href="settings.html" class="text-blue-400 hover:underline">系统设置 → 类别配置</a>中添加自定义品类（如传感器、继电器等），可同时设置子类别和分化参数</li>
+                                    <li><strong>子类别</strong>：每个品类（内置 + 自定义）可独立配置二级子类别列表</li>
+                                    <li><strong>分化参数</strong>：自定义类别可定义专属筛选参数（参数名 + 单位），在列表页支持范围筛选</li>
+                                    <li><strong>位置编号前缀</strong>：每个类别可单独设置位置编号前缀，在类别配置右侧面板中直接编辑，输入即自动保存</li>
+                                    <li>批量编辑：支持批量修改选中元器件的子类别</li>
+                                </ul>
+                                <div class="bg-green-500/10 border border-green-500/30 rounded-lg p-4 mt-4">
+                                    <p class="text-green-400 text-sm">
+                                        💡 <strong>提示：</strong>自定义类别的编辑和删除操作均在类别配置弹窗左侧面板中完成（悬停显示操作按钮）。
+                                    </p>
+                                </div>
+                            </div>
+
+                            <h3 class="text-lg font-semibold text-white mt-8">筛选功能</h3>
+                            <p>点击左侧分类列表即可筛选对应分类的元器件，支持实时更新。</p>
+
+                            <h3 class="text-lg font-semibold text-white mt-8">分化参数范围筛选</h3>
+                            <div class="space-y-3">
+                                <p>选择带分化参数的品类（电阻、电容、电感、MOS管、二极管、三极管、LED、晶振）后，侧边栏会显示"参数筛选"区域，可按数值范围精确筛选：</p>
+                                <ul class="list-disc ml-6 space-y-2">
+                                    <li>设置最小值/最大值和单位，筛选出参数值在指定范围内的元器件</li>
+                                    <li>支持同时筛选多个参数（如阻值 + 额定功率）</li>
+                                    <li>自动进行单位换算比较（如 1kΩ 自动转为 1000Ω）</li>
+                                    <li>点击"清除参数筛选"按钮一键重置</li>
+                                </ul>
+                                <div class="bg-blue-500/10 border border-blue-500/30 rounded-lg p-4 mt-4">
+                                    <p class="text-blue-400 text-sm">
+                                        💡 <strong>示例：</strong>选择"电阻"分类后，在"阻值"参数筛选器中设置最小值 10、最大值 100、单位 Ω，即可筛选出 10Ω~100Ω 的所有电阻。
+                                    </p>
+                                </div>
+                            </div>
+
+                            <h3 class="text-lg font-semibold text-white mt-8">拖拽排序</h3>
+                            <div class="space-y-3">
+                                <p>支持通过左侧拖拽手柄调整分类顺序：</p>
+                                <ul class="list-disc ml-6 space-y-2">
+                                    <li>拖拽分类项左侧的 ⋮⋮ 手柄</li>
+                                    <li>拖拽时会显示插入线提示</li>
+                                    <li>松开后会自动吸附到目标位置</li>
+                                    <li>排序结果会自动保存</li>
+                                </ul>
+                                <div class="bg-green-500/10 border border-green-500/30 rounded-lg p-4 mt-4">
+                                    <p class="text-green-400 text-sm">
+                                        💡 <strong>提示：</strong>仅通过手柄触发拖拽，不会影响分类筛选的点击操作。
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 库存管理 -->
+                <section id="inventory-management" class="doc-section">
+                    <div class="doc-card p-8">
+                        <h2 class="text-2xl font-bold text-white mb-6 section-title">库存管理</h2>
+                        
+                        <div class="space-y-6 text-gray-300">
+                            <h3 class="text-lg font-semibold text-white">添加/减少库存</h3>
+                            <p>在元器件卡片上直接点击"+"或"-"按钮即可快速调整库存。</p>
+                            
+                            <h3 class="text-lg font-semibold text-white mt-8">库存预警</h3>
+                            <div class="space-y-3">
+                                <p>系统会根据库存数量显示不同的状态：</p>
+                                <div class="space-y-2">
+                                    <div class="flex items-center space-x-3">
+                                        <span class="w-3 h-3 bg-green-400 rounded-full"></span>
+                                        <span>库存充足（数量 ≥ 10）</span>
+                                    </div>
+                                    <div class="flex items-center space-x-3">
+                                        <span class="w-3 h-3 bg-yellow-400 rounded-full"></span>
+                                        <span>库存预警（1 ≤ 数量 < 10）</span>
+                                    </div>
+                                    <div class="flex items-center space-x-3">
+                                        <span class="w-3 h-3 bg-red-400 rounded-full"></span>
+                                        <span>库存不足（数量 = 0）</span>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="bg-blue-500/10 border border-blue-500/30 rounded-lg p-4 mt-6">
+                                <p class="text-blue-400 text-sm">
+                                    💡 <strong>提示：</strong>可在<a href="settings.html" class="text-blue-400 hover:underline">系统设置</a>中调整预警阈值。
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 出入库清单 -->
+                <section id="checkout-inbound" class="doc-section">
+                    <div class="doc-card p-8">
+                        <h2 class="text-2xl font-bold text-white mb-6 section-title">出入库清单</h2>
+                        
+                        <div class="space-y-6 text-gray-300">
+                            <h3 class="text-lg font-semibold text-white">出库清单</h3>
+                            <div class="space-y-3">
+                                <p>用于管理批量出库操作：</p>
+                                <ul class="list-disc ml-6 space-y-2">
+                                    <li>在元器件卡片上点击"出库"按钮添加到清单</li>
+                                    <li>清单面板显示在右侧（桌面端）或底部（移动端）</li>
+                                    <li>可以直接输入数量进行修改</li>
+                                    <li>点击"提交出库"按钮执行批量出库</li>
+                                    <li>操作记录会保存到历史记录中</li>
+                                </ul>
+                            </div>
+                            
+                            <h3 class="text-lg font-semibold text-white mt-8">入库清单</h3>
+                            <div class="space-y-3">
+                                <p>用于管理批量入库操作：</p>
+                                <ul class="list-disc ml-6 space-y-2">
+                                    <li>在元器件卡片上点击"入库"按钮添加到清单</li>
+                                    <li>使用标签页切换出库/入库清单</li>
+                                    <li>其他操作与出库清单相同</li>
+                                </ul>
+                            </div>
+                            
+                            <h3 class="text-lg font-semibold text-white mt-8">操作历史</h3>
+                            <p>所有出入库操作都会记录在历史记录中，支持查看和撤回。支持一键清空全部、出库或入库记录。</p>
+                            <div class="space-y-3 mt-4">
+                                <p><strong>自动记录场景：</strong></p>
+                                <ul class="list-disc ml-6 space-y-2">
+                                    <li>添加新元器件时，如果初始库存 > 0，会自动记录入库历史</li>
+                                    <li>通过卡片 +/- 按钮调整库存时，会记录出库/入库历史</li>
+                                    <li>在详情页编辑库存时，会记录出库/入库历史</li>
+                                    <li>批量出库/入库操作时，会记录历史</li>
+                                </ul>
+                            </div>
+                            
+                            <div class="bg-blue-500/10 border border-blue-500/30 rounded-lg p-4 mt-6">
+                                <p class="text-blue-400 text-sm">
+                                    💡 <strong>提示：</strong>清单数据保存在sessionStorage中，页面刷新不会丢失；出入库历史记录永久保存在localStorage中。
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- BOM智能匹配 -->
+                <section id="bom-match" class="doc-section">
+                    <div class="doc-card p-8">
+                        <h2 class="text-2xl font-bold text-white mb-6 section-title">BOM智能匹配</h2>
+                        
+                        <div class="space-y-6 text-gray-300">
+                            <p>BOM（Bill of Materials）智能匹配功能可以帮助您快速将BOM清单中的元器件与库内元器件进行匹配，支持Excel和CSV格式文件。</p>
+                            
+                            <h3 class="text-lg font-semibold text-white">功能特点</h3>
+                            <ul class="list-disc ml-6 space-y-2">
+                                <li><strong>多候选匹配</strong>：每个BOM项可显示多个匹配候选（如22uf、22uf 16v等），按置信度排序</li>
+                                <li><strong>智能推断</strong>：支持类别推断和多层级匹配规则</li>
+                                <li><strong>数值标准化</strong>：自动处理小数点格式差异（如6.0和6视为相同）</li>
+                                <li><strong>单位换算</strong>：支持电容、电阻、电感、电流、电压等单位自动转换</li>
+                                <li><strong>高置信度过滤</strong>：仅显示置信度≥70%的候选匹配</li>
+                                <li><strong>字段兼容</strong>：支持Comment字段作为名称，优先级高于Name</li>
+                                <li><strong>悬停提示</strong>：鼠标悬停1秒显示BOM表完整信息，按列顺序排列</li>
+                                <li><strong>无类别匹配</strong>：即使没有Category字段，也能基于Value参数匹配</li>
+                            </ul>
+
+                            <h3 class="text-lg font-semibold text-white mt-8">使用步骤</h3>
+                            <div class="space-y-4">
+                                <div>
+                                    <span class="step-number">1</span>
+                                    <span class="text-gray-300">点击首页的"导入BOM"按钮或按Ctrl+B快捷键</span>
+                                </div>
+                                <div>
+                                    <span class="step-number">2</span>
+                                    <span class="text-gray-300">选择Excel或CSV格式的BOM文件</span>
+                                </div>
+                                <div>
+                                    <span class="step-number">3</span>
+                                    <span class="text-gray-300">系统自动解析文件内容并进行智能匹配</span>
+                                </div>
+                                <div>
+                                    <span class="step-number">4</span>
+                                    <span class="text-gray-300">在左侧BOM面板查看待查找项，匹配数量以数字显示（绿色/黄色/红色）</span>
+                                </div>
+                                <div>
+                                    <span class="step-number">5</span>
+                                    <span class="text-gray-300">点击待查找项可在主页筛选显示所有匹配的元器件</span>
+                                </div>
+                                <div>
+                                    <span class="step-number">6</span>
+                                    <span class="text-gray-300">鼠标悬停在待查找项上1秒可查看BOM完整信息（按列顺序用"|"分隔）</span>
+                                </div>
+                            </div>
+
+                            <h3 class="text-lg font-semibold text-white mt-8">BOM文件格式要求</h3>
+                            <div class="space-y-3">
+                                <p>BOM文件需要包含以下列（列名不区分大小写）：</p>
+                                <div class="code-block">
+                                    必需列：Comment 或 Name（名称）<br>
+                                    推荐列：Model（型号）、Value（参数）、Category（分类）、Quantity（数量）<br>
+                                    可选列：Package（封装）、Footprint（焊盘）、Description（描述）、Manufacturer（厂商）、Notes（备注）
+                                </div>
+                                <div class="bg-blue-500/10 border border-blue-500/30 rounded-lg p-4 mt-4">
+                                    <p class="text-blue-400 text-sm">
+                                        💡 <strong>提示：</strong>系统会自动识别列名。Comment字段优先级高于Name字段，即使列名大小写不一致也能正确匹配。
+                                    </p>
+                                </div>
+                                <div class="bg-green-500/10 border border-green-500/30 rounded-lg p-4 mt-2">
+                                    <p class="text-green-400 text-sm">
+                                        💡 <strong>提示：</strong>如果没有Category字段，系统会根据Value参数自动推断类别（如"10nf"推断为电容）。
+                                    </p>
+                                </div>
+                            </div>
+
+                            <h3 class="text-lg font-semibold text-white mt-8">匹配规则说明</h3>
+                            <div class="space-y-3">
+                                <p>系统采用多层级匹配策略，按优先级从高到低：</p>
+                                <ul class="list-disc ml-6 space-y-2">
+                                    <li><strong>精确匹配</strong>：型号完全匹配（置信度100%）</li>
+                                    <li><strong>类别精确匹配</strong>：数值和类别同时匹配（置信度80-95%）</li>
+                                    <li><strong>数值类别匹配</strong>：数值匹配后推断类别（置信度70-85%）</li>
+                                </ul>
+                                <div class="bg-green-500/10 border border-green-500/30 rounded-lg p-4 mt-4">
+                                    <p class="text-green-400 text-sm">
+                                        💡 <strong>示例：</strong>BOM中的"22uf"会同时匹配库中的"22uf"和"22uf 16v"，按置信度排序显示。
+                                    </p>
+                                </div>
+                            </div>
+
+                            <h3 class="text-lg font-semibold text-white mt-8">单位换算支持</h3>
+                            <div class="space-y-3">
+                                <p>系统支持以下单位的自动换算：</p>
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mt-4">
+                                    <div class="bg-gray-800/50 rounded-lg p-3">
+                                        <span class="text-cyan-400 font-medium">电容：</span>
+                                        <span class="text-gray-300">pF, nF, uF, mF, kF, F</span>
+                                    </div>
+                                    <div class="bg-gray-800/50 rounded-lg p-3">
+                                        <span class="text-cyan-400 font-medium">电阻：</span>
+                                        <span class="text-gray-300">Ω, kΩ, MΩ, GΩ</span>
+                                    </div>
+                                    <div class="bg-gray-800/50 rounded-lg p-3">
+                                        <span class="text-cyan-400 font-medium">电感：</span>
+                                        <span class="text-gray-300">nH, uH, mH, H</span>
+                                    </div>
+                                    <div class="bg-gray-800/50 rounded-lg p-3">
+                                        <span class="text-cyan-400 font-medium">电流：</span>
+                                        <span class="text-gray-300">mA, A</span>
+                                    </div>
+                                    <div class="bg-gray-800/50 rounded-lg p-3">
+                                        <span class="text-cyan-400 font-medium">电压：</span>
+                                        <span class="text-gray-300">mV, V, kV</span>
+                                    </div>
+                                </div>
+                                <div class="bg-green-500/10 border border-green-500/30 rounded-lg p-4 mt-4">
+                                    <p class="text-green-400 text-sm">
+                                        💡 <strong>示例：</strong>BOM中的"0.1uf"会与库中的"100nf"视为相同进行匹配；"10nf"会被识别为电容。
+                                    </p>
+                                </div>
+                            </div>
+
+                            <h3 class="text-lg font-semibold text-white mt-8">操作提示</h3>
+                            <div class="space-y-3">
+                                <ul class="list-disc ml-6 space-y-2">
+                                    <li>BOM面板位于左侧，只显示待查找项，不显示详细匹配结果</li>
+                                    <li>BOM数据会缓存在内存中，关闭面板后不会丢失，下次打开可直接使用</li>
+                                    <li>点击待查找项会触发筛选，在主页显示所有匹配的元器件</li>
+                                    <li>匹配数字颜色：<strong>红色0</strong>无匹配、<strong>绿色1</strong>完全匹配、<strong>黄色N</strong>有N个候选</li>
+                                    <li>鼠标悬停在待查找项上1秒，会显示BOM表该行的完整信息（按列顺序，用"|"分隔）</li>
+                                    <li>BOM面板宽度为320px，关闭后完全移出屏幕</li>
+                                    <li>如匹配结果不理想，可尝试调整元器件的参数描述或添加缺失字段</li>
+                                    <li>快捷键Ctrl+B可以快速打开/关闭BOM面板</li>
+                                </ul>
+                            </div>
+
+                            <div class="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-4 mt-6">
+                                <p class="text-yellow-400 text-sm">
+                                    ⚠️ <strong>注意：</strong>BOM匹配功能依赖于元器件的参数描述是否完整，建议在添加元器件时尽量填写详细参数。
+                                </p>
+                            </div>
+                            <div class="bg-blue-500/10 border border-blue-500/30 rounded-lg p-4 mt-4">
+                                <p class="text-blue-400 text-sm">
+                                    💡 <strong>技巧：</strong>如果BOM表中没有Category字段，确保Value参数包含单位（如10nf、1k等），系统会自动推断类别。
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 搜索功能 -->
+                <section id="search" class="doc-section">
+                    <div class="doc-card p-8">
+                        <h2 class="text-2xl font-bold text-white mb-6 section-title">搜索功能</h2>
+                        
+                        <div class="space-y-6 text-gray-300">
+                            <p>系统支持强大的搜索功能，帮助您快速定位元器件。</p>
+                            
+                            <h3 class="text-lg font-semibold text-white">搜索范围</h3>
+                            <ul class="list-disc ml-6 space-y-2">
+                                <li>元器件名称</li>
+                                <li>元器件型号</li>
+                                <li>品牌</li>
+                                <li>商品编号（LCSC料号）</li>
+                                <li>分化参数</li>
+                                <li>分类名称 / 子类别名称</li>
+                            </ul>
+                            
+                            <h3 class="text-lg font-semibold text-white mt-8">多关键词搜索</h3>
+                            <div class="space-y-3">
+                                <p>支持使用空格分隔多个关键词，系统会同时匹配所有关键词（AND逻辑）：</p>
+                                <div class="code-block">
+                                    搜索示例：电阻 10k 0805
+                                </div>
+                                <p class="text-sm">以上搜索会同时匹配包含"电阻"、"10k"、"0805"的元器件。</p>
+                            </div>
+                            
+                            <div class="bg-green-500/10 border border-green-500/30 rounded-lg p-4 mt-6">
+                                <p class="text-green-400 text-sm">
+                                    💡 <strong>提示：</strong>搜索结果会实时更新，无需按回车键。
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 数据备份与恢复 -->
+                <section id="backup-restore" class="doc-section">
+                    <div class="doc-card p-8">
+                        <h2 class="text-2xl font-bold text-white mb-6 section-title">数据存储与备份</h2>
+
+                        <div class="space-y-6 text-gray-300">
+                            <h3 class="text-lg font-semibold text-white">自动保存机制</h3>
+                            <div class="space-y-3">
+                                <p>系统支持两种数据保存方式：</p>
+                                <div class="bg-gray-800/50 rounded-lg p-4">
+                                    <h4 class="text-white font-medium mb-2">📦 方式一：浏览器本地存储（默认）</h4>
+                                    <p>所有数据自动保存到浏览器的 localStorage 中，无需手动操作。</p>
+                                    <ul class="list-disc ml-6 mt-2 space-y-1 text-sm">
+                                        <li>所有元器件数据（名称、型号、分类、库存等）</li>
+                                        <li>品牌、商品编号、分化参数</li>
+                                        <li>分类排序顺序</li>
+                                        <li>出入库历史记录</li>
+                                    </ul>
+                                </div>
+                                <div class="bg-gray-800/50 rounded-lg p-4">
+                                    <h4 class="text-white font-medium mb-2">💾 方式二：服务端文件存储（推荐）</h4>
+                                    <p>使用 <code class="code-block px-2 py-0.5 inline">node server.js</code> 启动后，数据会自动同步保存到项目文件夹的 <code class="code-block px-2 py-0.5 inline">data/components.json</code> 文件中。</p>
+                                    <p class="mt-2 text-sm">优势：</p>
+                                    <ul class="list-disc ml-6 mt-1 space-y-1 text-sm">
+                                        <li>数据存在项目文件夹，不受浏览器缓存清除影响</li>
+                                        <li>支持多设备共享同一份数据（配合 git 或网盘）</li>
+                                        <li>浏览器本地存储和文件双向同步</li>
+                                    </ul>
+                                </div>
+                                <div class="bg-green-500/10 border border-green-500/30 rounded-lg p-4 mt-4">
+                                    <p class="text-green-400 text-sm">
+                                        💡 <strong>说明：</strong>无需手动点击保存按钮，每次添加、修改、删除元器件都会自动保存。即使意外关闭浏览器，数据也不会丢失。
+                                    </p>
+                                </div>
+                            </div>
+
+                            <h3 class="text-lg font-semibold text-white mt-8">数据导出</h3>
+                            <div class="space-y-3">
+                                <p>在侧边栏点击"导出数据"按钮，或在系统设置中点击"导出全部数据"，可以将数据导出为JSON文件。</p>
+                                <p><strong>保存位置选择：</strong></p>
+                                <ul class="list-disc ml-6 space-y-2">
+                                    <li><strong>Chrome/Edge 浏览器：</strong>会弹出"另存为"对话框，您可以自由选择保存位置和修改文件名</li>
+                                    <li><strong>其他浏览器：</strong>文件会自动保存到浏览器的默认下载目录</li>
+                                </ul>
+                                <p><strong>适用场景：</strong></p>
+                                <ul class="list-disc ml-6 space-y-2">
+                                    <li>长期备份（避免浏览器数据被清除）</li>
+                                    <li>数据迁移（在不同设备间传输）</li>
+                                    <li>版本管理（保留不同时期的数据快照）</li>
+                                </ul>
+                                <div class="bg-purple-500/10 border border-purple-500/30 rounded-lg p-4 mt-4">
+                                    <p class="text-purple-400 text-sm">
+                                        💡 <strong>新功能：</strong>Chrome 和 Edge 浏览器现在支持选择保存位置，不再局限于默认下载目录！
+                                    </p>
+                                </div>
+                            </div>
+
+                            <h3 class="text-lg font-semibold text-white mt-8">数据导入</h3>
+                            <div class="space-y-3">
+                                <p>在侧边栏点击"导入数据"按钮，选择JSON文件即可导入。</p>
+                                <div class="bg-blue-500/10 border border-blue-500/30 rounded-lg p-4">
+                                    <p class="text-blue-400 text-sm">
+                                        💡 <strong>提示：</strong>导入不会覆盖现有数据，而是将新元器件添加到现有列表中。
+                                    </p>
+                                </div>
+                            </div>
+
+                            <h3 class="text-lg font-semibold text-white mt-8">数据丢失风险</h3>
+                            <div class="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-4">
+                                <p class="text-yellow-400 text-sm">
+                                    ⚠️ <strong>注意：</strong>以下情况可能导致数据丢失，请定期导出备份：
+                                </p>
+                                <ul class="list-disc ml-6 mt-2 text-yellow-300">
+                                    <li>清除浏览器数据/缓存</li>
+                                    <li>使用隐身/无痕模式</li>
+                                    <li>更换浏览器或设备</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- LCSC 立创商城订单导入（暂不可用） -->
+                <section id="lcsc-import" class="doc-section">
+                    <div class="doc-card p-8">
+                        <h2 class="text-2xl font-bold text-white mb-6 section-title">LCSC 立创商城订单导入</h2>
+
+                        <div class="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-6">
+                            <div class="flex items-start space-x-4">
+                                <div class="flex-shrink-0 mt-0.5">
+                                    <svg class="w-6 h-6 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                    </svg>
+                                </div>
+                                <div>
+                                    <h3 class="text-lg font-semibold text-yellow-300 mb-2">功能暂不可用</h3>
+                                    <p class="text-sm text-yellow-200/80 leading-relaxed">
+                                        由于立创商城/嘉立创开放平台暂未开放元器件相关的 API 接口，此功能暂时搁置。
+                                    </p>
+                                    <p class="text-sm text-yellow-200/60 leading-relaxed mt-2">
+                                        后续 API 开放后将继续开发一键导入立创商城订单的功能，敬请期待。
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="space-y-6 text-gray-300 mt-6">
+                            <p>目前您仍然可以通过 BOM 匹配功能间接使用 LCSC 的订单数据：</p>
+                            <ol class="list-disc ml-6 space-y-2">
+                                <li>在立创商城导出 BOM 文件（Excel/CSV 格式）</li>
+                                <li>使用系统的「导入 BOM」功能进行智能匹配</li>
+                                <li>系统会自动匹配库内元器件并高亮显示</li>
+                            </ol>
+                            <div class="bg-blue-500/10 border border-blue-500/30 rounded-lg p-4">
+                                <p class="text-blue-400 text-sm">
+                                    💡 <strong>替代方案：</strong>BOM 匹配功能已支持品类推断、单位换算和 9 级匹配规则，可以满足大部分从 LCSC 订单数据中匹配元器件的需求。
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- MQTT 通信 -->
+                <section id="mqtt" class="doc-section">
+                    <div class="doc-card p-8">
+                        <h2 class="text-2xl font-bold text-white mb-6 section-title">MQTT 通信</h2>
+
+                        <div class="space-y-6 text-gray-300">
+                            <p>系统支持 MQTT 协议进行实时通信，可用于与外部系统集成、设备联动等场景。</p>
+
+                            <h3 class="text-lg font-semibold text-white">快速开始</h3>
+                            <div class="space-y-4">
+                                <div>
+                                    <span class="step-number">1</span>
+                                    <span class="text-gray-300">打开设置页面，滚动到"MQTT 通信"面板</span>
+                                </div>
+                                <div>
+                                    <span class="step-number">2</span>
+                                    <span class="text-gray-300">配置连接参数（推荐使用加密连接）</span>
+                                </div>
+                                <div>
+                                    <span class="step-number">3</span>
+                                    <span class="text-gray-300">点击"连接"按钮</span>
+                                </div>
+                                <div>
+                                    <span class="step-number">4</span>
+                                    <span class="text-gray-300">订阅主题、发布消息、查看记录</span>
+                                </div>
+                            </div>
+
+                            <h3 class="text-lg font-semibold text-white mt-8">连接参数说明</h3>
+                            <div class="overflow-x-auto">
+                                <table class="w-full text-sm border-collapse">
+                                    <thead>
+                                        <tr class="border-b border-gray-700">
+                                            <th class="text-left py-2 px-3 text-gray-400">参数</th>
+                                            <th class="text-left py-2 px-3 text-gray-400">说明</th>
+                                            <th class="text-left py-2 px-3 text-gray-400">示例</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr class="border-b border-gray-800">
+                                            <td class="py-2 px-3 text-white font-medium">Broker 地址</td>
+                                            <td class="py-2 px-3">MQTT 服务器地址</td>
+                                            <td class="py-2 px-3"><code class="code-block px-2 py-1 inline">broker.emqx.io</code></td>
+                                        </tr>
+                                        <tr class="border-b border-gray-800">
+                                            <td class="py-2 px-3 text-white font-medium">端口</td>
+                                            <td class="py-2 px-3">WebSocket 端口</td>
+                                            <td class="py-2 px-3"><code class="code-block px-2 py-1 inline">8084</code> 或 <code class="code-block px-2 py-1 inline">8083</code></td>
+                                        </tr>
+                                        <tr class="border-b border-gray-800">
+                                            <td class="py-2 px-3 text-white font-medium">路径</td>
+                                            <td class="py-2 px-3">WebSocket 路径</td>
+                                            <td class="py-2 px-3"><code class="code-block px-2 py-1 inline">/mqtt</code></td>
+                                        </tr>
+                                        <tr class="border-b border-gray-800">
+                                            <td class="py-2 px-3 text-white font-medium">客户端 ID</td>
+                                            <td class="py-2 px-3">唯一标识符</td>
+                                            <td class="py-2 px-3">留空自动生成</td>
+                                        </tr>
+                                        <tr class="border-b border-gray-800">
+                                            <td class="py-2 px-3 text-white font-medium">用户名</td>
+                                            <td class="py-2 px-3">认证用户名（可选）</td>
+                                            <td class="py-2 px-3">留空或填写</td>
+                                        </tr>
+                                        <tr class="border-b border-gray-800">
+                                            <td class="py-2 px-3 text-white font-medium">密码</td>
+                                            <td class="py-2 px-3">认证密码（可选）</td>
+                                            <td class="py-2 px-3">留空或填写</td>
+                                        </tr>
+                                        <tr>
+                                            <td class="py-2 px-3 text-white font-medium">使用 SSL/TLS</td>
+                                            <td class="py-2 px-3">启用加密连接</td>
+                                            <td class="py-2 px-3">HTTPS 页面必须勾选</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            <h3 class="text-lg font-semibold text-white mt-8">推荐配置方案</h3>
+                            <div class="space-y-4">
+                                <div class="bg-green-500/10 border border-green-500/30 rounded-lg p-4">
+                                    <h4 class="text-green-400 font-semibold mb-2">✅ 方案 1：公共服务器（推荐）</h4>
+                                    <div class="bg-gray-800/50 rounded-lg p-4 mt-2">
+                                        <pre class="code-block text-sm">Broker 地址：broker.emqx.io
+端口：8084
+路径：/mqtt
+使用 SSL/TLS：☑ 勾选</pre>
+                                    </div>
+                                    <p class="text-sm text-gray-400 mt-2">适用于 HTTPS 页面，安全稳定</p>
+                                </div>
+
+                                <div class="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-4">
+                                    <h4 class="text-yellow-400 font-semibold mb-2">⚠️ 方案 2：HTTP 页面（不推荐）</h4>
+                                    <div class="bg-gray-800/50 rounded-lg p-4 mt-2">
+                                        <pre class="code-block text-sm">Broker 地址：broker.emqx.io
+端口：8083
+路径：/mqtt
+使用 SSL/TLS：☐ 不勾选</pre>
+                                    </div>
+                                    <p class="text-sm text-gray-400 mt-2">仅适用于 HTTP 页面，不安全</p>
+                                </div>
+                            </div>
+
+                            <div class="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-4 mt-6">
+                                <p class="text-yellow-400 text-sm">
+                                    ⚠️ <strong>重要：</strong>如果您的页面通过 HTTPS 访问，必须使用加密连接（端口 8084 并勾选 SSL/TLS），否则会提示"连接失败"错误。
+                                </p>
+                            </div>
+
+                            <h3 class="text-lg font-semibold text-white mt-8">主题订阅</h3>
+                            <div class="space-y-3">
+                                <p>支持使用通配符订阅多个主题：</p>
+                                <ul class="list-disc ml-6 space-y-2">
+                                    <li><strong>精确订阅：</strong><code class="code-block px-2 py-1 inline">components/resistor/status</code> - 只订阅该主题</li>
+                                    <li><strong>单级通配符（+）：</strong><code class="code-block px-2 py-1 inline">components/+/status</code> - 订阅所有 components 下的 status 子主题</li>
+                                    <li><strong>多级通配符（#）：</strong><code class="code-block px-2 py-1 inline">sensors/#</code> - 订阅 sensors 下的所有主题及其子主题</li>
+                                </ul>
+                            </div>
+
+                            <h3 class="text-lg font-semibold text-white mt-8">消息发布</h3>
+                            <div class="space-y-3">
+                                <p>支持发布文本和 JSON 格式的消息：</p>
+                                <div class="bg-gray-800/50 rounded-lg p-4">
+                                    <h4 class="text-white font-semibold mb-2">示例 1：文本消息</h4>
+                                    <pre class="code-block text-sm">主题：test/hello
+消息：Hello MQTT!</pre>
+                                </div>
+                                <div class="bg-gray-800/50 rounded-lg p-4">
+                                    <h4 class="text-white font-semibold mb-2">示例 2：JSON 消息</h4>
+                                    <pre class="code-block text-sm">主题：component/outbound
+消息：{
+  "action": "outbound",
+  "componentId": "resistor_001",
+  "quantity": 10,
+  "timestamp": "2026-01-25T12:00:00Z"
+}</pre>
+                                </div>
+                            </div>
+
+                            <h3 class="text-lg font-semibold text-white mt-8">消息记录</h3>
+                            <div class="space-y-3">
+                                <p>实时显示收发消息，支持查看最近 50 条记录：</p>
+                                <ul class="list-disc ml-6 space-y-2">
+                                    <li><strong>↓ 绿色箭头：</strong>接收到的消息</li>
+                                    <li><strong>↑ 蓝色箭头：</strong>发送的消息</li>
+                                    <li><strong>时间戳：</strong>消息发送/接收的时间</li>
+                                    <li><strong>主题：</strong>消息所属的主题</li>
+                                    <li><strong>内容：</strong>消息的实际内容</li>
+                                </ul>
+                            </div>
+
+                            <h3 class="text-lg font-semibold text-white mt-8">常见问题</h3>
+                            <div class="space-y-4">
+                                <div class="bg-red-500/10 border border-red-500/30 rounded-lg p-4">
+                                    <h4 class="text-red-400 font-semibold mb-2">Q: 连接失败提示"Failed to construct WebSocket"？</h4>
+                                    <p class="text-gray-300">A: 这是因为 HTTPS 页面不能使用非加密的 ws:// 连接。请将端口改为 8084 并勾选"使用 SSL/TLS"。</p>
+                                </div>
+                                <div class="bg-blue-500/10 border border-blue-500/30 rounded-lg p-4">
+                                    <h4 class="text-blue-400 font-semibold mb-2">Q: 可以连接但收不到消息？</h4>
+                                    <p class="text-gray-300">A: 请确保已订阅正确的主题，并且发布消息的主题与订阅的主题匹配（或使用通配符）。</p>
+                                </div>
+                                <div class="bg-blue-500/10 border border-blue-500/30 rounded-lg p-4">
+                                    <h4 class="text-blue-400 font-semibold mb-2">Q: 配置会保存吗？</h4>
+                                    <p class="text-gray-300">A: 是的，MQTT 连接配置会自动保存到本地存储，下次访问时自动加载。断开后重新连接会自动恢复之前的订阅。</p>
+                                </div>
+                            </div>
+
+                            <div class="bg-blue-500/10 border border-blue-500/30 rounded-lg p-4 mt-6">
+                                <p class="text-blue-400 text-sm">
+                                    💡 <strong>提示：</strong>更多详细信息，请访问设置页面的"MQTT 通信"面板进行实际操作。
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 系统设置 -->
+                <section id="settings" class="doc-section">
+                    <div class="doc-card p-8">
+                        <h2 class="text-2xl font-bold text-white mb-6 section-title">系统设置</h2>
+
+                        <div class="space-y-6 text-gray-300">
+                            <h3 class="text-lg font-semibold text-white">数据管理</h3>
+                            <ul class="list-disc ml-6 space-y-2">
+                                <li>导出数据（保存为JSON文件）</li>
+                                <li>导入数据（从JSON文件恢复）</li>
+                            </ul>
+
+                            <h3 class="text-lg font-semibold text-white mt-8">导出设置</h3>
+                            <p>在系统设置中可以选择导出方式：</p>
+                            <ul class="list-disc ml-6 space-y-2">
+                                <li><strong>文件选择器（推荐）：</strong>Chrome/Edge 浏览器支持自定义保存位置</li>
+                                <li><strong>传统下载：</strong>文件自动保存到浏览器默认下载目录</li>
+                            </ul>
+
+                            <h3 class="text-lg font-semibold text-white mt-8">系统信息</h3>
+                            <ul class="list-disc ml-6 space-y-2">
+                                <li>版本号</li>
+                                <li>数据版本</li>
+                                <li>元器件数量</li>
+                                <li>最后更新时间</li>
+                            </ul>
+
+                            <h3 class="text-lg font-semibold text-white mt-8">版本日志</h3>
+                            <p>查看系统的版本更新历史和新功能说明。</p>
+
+                            <h3 class="text-lg font-semibold text-white mt-8">MQTT 通信</h3>
+                            <p>系统支持 MQTT 协议进行实时通信，可用于与外部系统集成、设备联动等场景。</p>
+                            
+                            <div class="mt-4 space-y-4">
+                                <div>
+                                    <h4 class="text-base font-semibold text-white mb-2">配置连接参数</h4>
+                                    <p>在设置页面的"MQTT 通信"面板中配置以下参数：</p>
+                                    <ul class="list-disc ml-6 space-y-1 mt-2">
+                                        <li><strong>Broker 地址：</strong>MQTT 服务器地址，如 <code class="code-block px-2 py-1 inline">broker.emqx.io</code></li>
+                                        <li><strong>端口：</strong>WebSocket 端口，如 <code class="code-block px-2 py-1 inline">8084</code>（加密）或 <code class="code-block px-2 py-1 inline">8083</code>（非加密）</li>
+                                        <li><strong>路径：</strong>通常为 <code class="code-block px-2 py-1 inline">/mqtt</code></li>
+                                        <li><strong>客户端 ID：</strong>留空自动生成，或手动指定</li>
+                                        <li><strong>用户名/密码：</strong>如服务器需要认证则填写</li>
+                                        <li><strong>使用 SSL/TLS：</strong>HTTPS 页面必须勾选，HTTP 页面可勾选以增强安全性</li>
+                                    </ul>
+                                </div>
+                                
+                                <div class="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-4">
+                                    <p class="text-yellow-400 text-sm">
+                                        ⚠️ <strong>重要：</strong>如果您的页面通过 HTTPS 访问，必须使用加密连接（端口 8084 并勾选 SSL/TLS），否则会连接失败。
+                                    </p>
+                                </div>
+                                
+                                <div>
+                                    <h4 class="text-base font-semibold text-white mb-2">推荐配置</h4>
+                                    <div class="bg-gray-800/50 rounded-lg p-4">
+                                        <pre class="code-block text-sm">Broker 地址：broker.emqx.io
+端口：8084
+路径：/mqtt
+使用 SSL/TLS：☑ 勾选</pre>
+                                    </div>
+                                </div>
+                                
+                                <div>
+                                    <h4 class="text-base font-semibold text-white mb-2">订阅主题</h4>
+                                    <p>支持通配符订阅：</p>
+                                    <ul class="list-disc ml-6 space-y-1 mt-2">
+                                        <li><code class="code-block px-2 py-1 inline">components/resistor/status</code>：精确订阅</li>
+                                        <li><code class="code-block px-2 py-1 inline">components/+/status</code>：单级通配符（+）</li>
+                                        <li><code class="code-block px-2 py-1 inline">sensors/#</code>：多级通配符（#）</li>
+                                    </ul>
+                                </div>
+                                
+                                <div>
+                                    <h4 class="text-base font-semibold text-white mb-2">发布消息</h4>
+                                    <p>支持文本和 JSON 格式消息，例如：</p>
+                                    <div class="bg-gray-800/50 rounded-lg p-4 mt-2">
+                                        <pre class="code-block text-sm">{
+  "action": "outbound",
+  "componentId": "resistor_001",
+  "quantity": 10,
+  "timestamp": "2026-01-25T12:00:00Z"
+}</pre>
+                                    </div>
+                                </div>
+                                
+                                <div>
+                                    <h4 class="text-base font-semibold text-white mb-2">消息记录</h4>
+                                    <p>实时显示收发消息，绿色箭头（↓）表示接收，蓝色箭头（↑）表示发送。</p>
+                                </div>
+                                
+                                <div class="bg-blue-500/10 border border-blue-500/30 rounded-lg p-4 mt-6">
+                                    <p class="text-blue-400 text-sm">
+                                        💡 <strong>提示：</strong>MQTT 连接配置会自动保存到本地存储，下次访问时自动加载。断开后重新连接会自动恢复之前的订阅。
+                                    </p>
+                                </div>
+                            </div>
+
+                            <h3 class="text-lg font-semibold text-white mt-8">LCSC 导入配置</h3>
+                            <p class="text-gray-400">
+                                ⏸️ 由于立创商城/嘉立创开放平台暂未开放元器件相关的 API 接口，此功能暂时搁置。
+                                您可以使用 <a href="#bom-match" class="text-blue-400 hover:underline">BOM 匹配功能</a> 导入 LCSC 的订单数据。
+                            </p>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 快捷键 -->
+                <section id="keyboard-shortcuts" class="doc-section">
+                    <div class="doc-card p-8">
+                        <h2 class="text-2xl font-bold text-white mb-6 section-title">快捷键</h2>
+
+                        <div class="space-y-4">
+                            <div class="flex items-center justify-between p-3 bg-gray-800/50 rounded-lg">
+                                <span class="text-gray-300">撤回操作</span>
+                                <kbd class="px-3 py-1 bg-gray-700 rounded text-cyan-400 font-mono">Ctrl + Z</kbd>
+                            </div>
+                            <div class="flex items-center justify-between p-3 bg-gray-800/50 rounded-lg">
+                                <span class="text-gray-300">聚焦搜索框</span>
+                                <kbd class="px-3 py-1 bg-gray-700 rounded text-cyan-400 font-mono">Ctrl + F</kbd>
+                            </div>
+                            <div class="flex items-center justify-between p-3 bg-gray-800/50 rounded-lg">
+                                <span class="text-gray-300">弹出/隐藏清单面板</span>
+                                <kbd class="px-3 py-1 bg-gray-700 rounded text-cyan-400 font-mono">Ctrl + A</kbd>
+                            </div>
+                            <div class="flex items-center justify-between p-3 bg-gray-800/50 rounded-lg">
+                                <span class="text-gray-300">打开/关闭BOM匹配面板</span>
+                                <kbd class="px-3 py-1 bg-gray-700 rounded text-cyan-400 font-mono">Ctrl + B</kbd>
+                            </div>
+                            <div class="flex items-center justify-between p-3 bg-gray-800/50 rounded-lg">
+                                <span class="text-gray-300">关闭对话框/隐藏面板</span>
+                                <kbd class="px-3 py-1 bg-gray-700 rounded text-cyan-400 font-mono">Esc</kbd>
+                            </div>
+                            <div class="flex items-center justify-between p-3 bg-gray-800/50 rounded-lg">
+                                <span class="text-gray-300">编辑元器件时保存</span>
+                                <kbd class="px-3 py-1 bg-gray-700 rounded text-cyan-400 font-mono">Enter</kbd>
+                            </div>
+                            <div class="flex items-center justify-between p-3 bg-gray-800/50 rounded-lg">
+                                <span class="text-gray-300">添加元器件时快速添加</span>
+                                <kbd class="px-3 py-1 bg-gray-700 rounded text-cyan-400 font-mono">Enter</kbd>
+                            </div>
+                            <div class="flex items-center justify-between p-3 bg-gray-800/50 rounded-lg">
+                                <span class="text-gray-300">清单面板可见时执行批量出库/入库</span>
+                                <kbd class="px-3 py-1 bg-gray-700 rounded text-cyan-400 font-mono">Enter</kbd>
+                            </div>
+                        </div>
+
+                        <div class="bg-blue-500/10 border border-blue-500/30 rounded-lg p-4 mt-6">
+                            <p class="text-blue-400 text-sm">
+                                💡 <strong>提示：</strong>撤回功能支持撤回添加、删除、编辑、更新库存、批量出入库及导入数据操作。Enter键快速保存功能不适用于textarea（备注信息）和select（类别选择）。ESC键优先关闭对话框，如果没有对话框则隐藏BOM面板或清单面板。
+                            </p>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 常见问题 -->
+                <section id="faq" class="doc-section">
+                    <div class="doc-card p-8">
+                        <h2 class="text-2xl font-bold text-white mb-6 section-title">常见问题</h2>
+                        
+                        <div class="space-y-6 text-gray-300">
+                            <div class="space-y-3">
+                                <h3 class="text-lg font-semibold text-white">Q: 数据会丢失吗？</h3>
+                                <p>A: 数据会自动保存到浏览器的本地存储中，正常情况下不会丢失。但以下情况可能导致数据丢失：清除浏览器缓存、使用无痕模式、更换浏览器或设备。建议定期使用"导出数据"功能备份。</p>
+                            </div>
+                            
+                            <div class="space-y-3">
+                                <h3 class="text-lg font-semibold text-white">Q: 如何批量删除元器件？</h3>
+                                <p>A: 在设置页面点击"批量编辑"，勾选要删除的元器件后，点击"批量删除"按钮即可批量删除。</p>
+                            </div>
+                            
+                            <div class="space-y-3">
+                                <h3 class="text-lg font-semibold text-white">Q: 图片上传失败怎么办？</h3>
+                                <p>A: 请确保图片URL是有效的、可访问的链接。建议使用图床服务获取稳定的URL。</p>
+                            </div>
+                            
+                            <div class="space-y-3">
+                                <h3 class="text-lg font-semibold text-white">Q: 出入库清单数据会保存吗？</h3>
+                                <p>A: 清单数据保存在sessionStorage中，页面刷新不会丢失，但关闭浏览器后会清空。历史记录会永久保存。</p>
+                            </div>
+                            
+                            <div class="space-y-3">
+                                <h3 class="text-lg font-semibold text-white">Q: 如何在手机上使用？</h3>
+                                <p>A: 系统支持响应式设计，在手机浏览器上可以正常使用。清单面板会自动调整为底部全宽模式。</p>
+                            </div>
+                            
+                            <div class="space-y-3">
+                                <h3 class="text-lg font-semibold text-white">Q: 撤回功能有什么限制？</h3>
+                                <p>A: 最多撤回50条操作记录，超过限制的旧记录会被自动删除。历史记录会持久化保存。</p>
+                            </div>
+
+                            <div class="space-y-3">
+                                <h3 class="text-lg font-semibold text-white">Q: 导入数据后可以撤回吗？</h3>
+                                <p>A: 可以。导入数据后可以按 Ctrl+Z 撤回，系统会恢复到导入前的状态，移除所有导入的元器件。</p>
+                            </div>
+
+                            <div class="space-y-3">
+                                <h3 class="text-lg font-semibold text-white">Q: LCSC 订单导入功能为什么不能用？</h3>
+                                <p>A: 由于立创商城/嘉立创开放平台暂未开放元器件相关的 API 接口，此功能暂时搁置。您可以使用 BOM 匹配功能来代替：在立创商城导出 BOM 文件后，通过「导入 BOM」进行匹配。</p>
+                            </div>
+
+                            <div class="space-y-3">
+                                <h3 class="text-lg font-semibold text-white">Q: 使用 node server.js 后数据存在哪里？</h3>
+                                <p>A: 数据自动同步到项目文件夹的 <code class="code-block px-2 py-0.5 inline">data/components.json</code> 文件中，同时保留浏览器 localStorage 作为备份。清除浏览器缓存不会丢失数据。</p>
+                            </div>
+
+                            <div class="space-y-3">
+                                <h3 class="text-lg font-semibold text-white">Q: 为什么双击 index.html 和 localhost:5000 的数据不一样？</h3>
+                                <p>A: 浏览器将 <code class="code-block px-2 py-0.5 inline">file://</code> 和 <code class="code-block px-2 py-0.5 inline">http://localhost:5000</code> 视为不同的存储源，localStorage 不互通。建议统一使用 <code class="code-block px-2 py-0.5 inline">start.bat</code> 启动后访问 <code class="code-block px-2 py-0.5 inline">http://localhost:5000</code>，数据持久化到项目文件夹。</p>
+                            </div>
+
+                            <div class="space-y-3">
+                                <h3 class="text-lg font-semibold text-white">Q: 删光了所有元器件，示例数据又回来了怎么办？</h3>
+                                <p>A: 系统只在首次访问时加载示例数据。如果删除所有元器件后示例数据又出现，请再次删除即可，之后不会再重新加载。</p>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 页脚 -->
+                <div class="text-center text-gray-400 py-8">
+                    <p>电子元器件管理系统 v2.3.0 | 最后更新：2026-06-20</p>
+                    <p class="text-sm mt-2">如有问题，请参考本文档或访问系统设置页面</p>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        // 导航点击事件
+        document.querySelectorAll('.nav-item').forEach(item => {
+            item.addEventListener('click', function() {
+                // 移除所有active类
+                document.querySelectorAll('.nav-item').forEach(nav => nav.classList.remove('active'));
+                // 添加active类到当前项
+                this.classList.add('active');
+                
+                // 滚动到对应section
+                const sectionId = this.getAttribute('data-section');
+                const section = document.getElementById(sectionId);
+                if (section) {
+                    section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+            });
+        });
+
+        // 搜索功能
+        const searchInput = document.getElementById('searchInput');
+        const sections = document.querySelectorAll('.doc-section');
+        
+        searchInput.addEventListener('input', function() {
+            const searchTerm = this.value.toLowerCase().trim();
+            
+            if (searchTerm === '') {
+                // 搜索为空时，显示所有section，移除高亮
+                sections.forEach(section => {
+                    section.classList.remove('hidden-section');
+                    const highlightedText = section.querySelectorAll('.highlight');
+                    highlightedText.forEach(el => {
+                        el.outerHTML = el.textContent;
+                    });
+                });
+                return;
+            }
+            
+            sections.forEach(section => {
+                const text = section.textContent.toLowerCase();
+                const matches = text.includes(searchTerm);
+                
+                if (matches) {
+                    section.classList.remove('hidden-section');
+                    // 高亮匹配的文本
+                    highlightText(section, searchTerm);
+                } else {
+                    section.classList.add('hidden-section');
+                }
+            });
+        });
+        
+        function highlightText(element, searchTerm) {
+            // 先移除旧的高亮
+            const highlightedText = element.querySelectorAll('.highlight');
+            highlightedText.forEach(el => {
+                el.outerHTML = el.textContent;
+            });
+            
+            // 创建TreeWalker遍历文本节点
+            const walker = document.createTreeWalker(
+                element,
+                NodeFilter.SHOW_TEXT,
+                null,
+                false
+            );
+            
+            const textNodes = [];
+            let node;
+            while (node = walker.nextNode()) {
+                if (node.textContent.toLowerCase().includes(searchTerm) && 
+                    node.parentElement.tagName !== 'SCRIPT') {
+                    textNodes.push(node);
+                }
+            }
+            
+            // 高亮匹配的文本
+            textNodes.forEach(node => {
+                const text = node.textContent;
+                const regex = new RegExp(`(${escapeRegex(searchTerm)})`, 'gi');
+                const highlighted = text.replace(regex, '<span class="highlight">$1</span>');
+                
+                const span = document.createElement('span');
+                span.innerHTML = highlighted;
+                node.parentNode.replaceChild(span, node);
+            });
+        }
+        
+        function escapeRegex(string) {
+            return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        }
+
+        // 滚动监听，高亮当前导航项
+        const observerOptions = {
+            root: null,
+            rootMargin: '-20% 0px -80% 0px',
+            threshold: 0
+        };
+
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    const sectionId = entry.target.id;
+                    document.querySelectorAll('.nav-item').forEach(nav => {
+                        nav.classList.remove('active');
+                        if (nav.getAttribute('data-section') === sectionId) {
+                            nav.classList.add('active');
+                        }
+                    });
+                }
+            });
+        }, observerOptions);
+
+        sections.forEach(section => {
+            observer.observe(section);
+        });
+    </script>
+</body>
+</html>

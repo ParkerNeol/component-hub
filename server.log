@@ -1,0 +1,24 @@
+[Root] 项目根目录: D:\Desktop\component-hub
+
+  🚀 Component Hub 服务启动成功！
+  ───────────────────────────────────
+  地址: http://localhost:5000
+  静态文件服务: ✓
+  LCSC API 代理: ✓
+  Puppeteer 抓取: ✓ (延迟启动，首次请求时初始化)
+  ───────────────────────────────────
+  使用 python 方式仍可用: python -m http.server 5000
+  使用本服务: node server.js
+
+
+[Request] POST /api/data/components (origin: null)
+[Request] POST /api/data/components (origin: null)
+[Request] POST /api/settings (origin: null)
+[Request] POST /api/data/components (origin: null)
+[Request] POST /api/data/components (origin: null)
+[Request] POST /api/data/components (origin: null)
+[Request] POST /api/settings (origin: null)
+[Request] POST /api/data/components (origin: null)
+[Request] POST /api/data/components (origin: null)
+[Request] POST /api/settings (origin: null)
+[Request] POST /api/data/components (origin: null)

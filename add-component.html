@@ -1,0 +1,2317 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>添加元器件 - 电子元器件管理系统</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #1a1d29;
+            --bg-secondary: #242938;
+            --bg-card: #2a2f42;
+            --accent-primary: #00d4ff;
+            --accent-secondary: #ff6b35;
+            --text-primary: #f1f2f6;
+            --text-secondary: #a4a6b3;
+        }
+        
+        body {
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            font-family: 'Noto Sans SC', sans-serif;
+        }
+        
+        .circuit-bg {
+            background-image: 
+                radial-gradient(circle at 25px 25px, rgba(0, 212, 255, 0.1) 2px, transparent 2px),
+                linear-gradient(90deg, rgba(0, 212, 255, 0.05) 1px, transparent 1px),
+                linear-gradient(rgba(0, 212, 255, 0.05) 1px, transparent 1px);
+            background-size: 50px 50px, 25px 25px, 25px 25px;
+        }
+        
+        .form-card {
+            background: var(--bg-card);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 16px;
+            backdrop-filter: blur(10px);
+        }
+        
+        .form-input {
+            background: var(--bg-secondary);
+            border: 2px solid transparent;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+        }
+        
+        .form-input:focus {
+            border-color: var(--accent-primary);
+            box-shadow: 0 0 20px rgba(0, 212, 255, 0.3);
+            outline: none;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, var(--accent-primary), #0099cc);
+            border: none;
+            border-radius: 8px;
+            color: white;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(0, 212, 255, 0.4);
+        }
+        
+        .btn-secondary {
+            background: var(--bg-secondary);
+            border: 2px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            color: var(--text-primary);
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+        
+        .btn-secondary:hover {
+            border-color: var(--accent-primary);
+            background: rgba(0, 212, 255, 0.1);
+        }
+        
+        .template-card {
+            background: linear-gradient(135deg, rgba(30, 41, 59, 0.8) 0%, rgba(15, 23, 42, 0.9) 100%);
+            border: 2px solid transparent;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .template-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: linear-gradient(90deg, var(--accent-primary) 0%, transparent 100%);
+            opacity: 0;
+            transition: opacity 0.25s ease;
+        }
+
+        .template-card:hover::before {
+            opacity: 1;
+        }
+
+        .template-card:hover {
+            border-color: var(--accent-primary);
+            transform: translateY(-3px) scale(1.02);
+            box-shadow: 0 10px 30px -10px rgba(0, 212, 255, 0.3);
+        }
+
+        .template-card:active {
+            transform: translateY(-1px) scale(0.98);
+        }
+        
+        .preview-card {
+            background: var(--bg-card);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            position: sticky;
+            top: 24px;
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.3s;
+        }
+
+        .quantity-btn {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            border: 2px solid var(--accent-primary);
+            background: transparent;
+            color: var(--accent-primary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        .quantity-btn:hover {
+            background: var(--accent-primary);
+            color: var(--bg-primary);
+            transform: scale(1.1);
+        }
+        
+        .quantity-btn-compact {
+            width: 26px;
+            height: 26px;
+            border-radius: 50%;
+            border: 2px solid var(--accent-primary);
+            background: transparent;
+            color: var(--accent-primary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        .quantity-btn-compact:hover {
+            background: var(--accent-primary);
+            color: var(--bg-primary);
+            transform: scale(1.1);
+        }
+
+        @media (min-width: 640px) {
+            .quantity-btn-compact {
+                width: 32px;
+                height: 32px;
+            }
+        }
+        
+        .fade-in {
+            opacity: 0;
+            transform: translateY(20px);
+        }
+        
+        .fade-in.visible {
+            opacity: 1;
+            transform: translateY(0);
+            transition: all 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        /* 全局滚动条样式 - 与页面风格一致 */
+        ::-webkit-scrollbar {
+            width: 10px;
+            height: 10px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: var(--bg-secondary);
+            border-radius: 5px;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: linear-gradient(135deg, var(--accent-primary), #0099cc);
+            border-radius: 5px;
+            border: 2px solid var(--bg-secondary);
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: linear-gradient(135deg, #00e5ff, #00b8e6);
+        }
+
+        /* Firefox 滚动条样式 */
+        * {
+            scrollbar-width: thin;
+            scrollbar-color: var(--accent-primary) var(--bg-secondary);
+        }
+    </style>
+</head>
+<body class="circuit-bg min-h-screen">
+    <!-- 头部导航 -->
+    <header class="fixed top-0 left-0 right-0 z-50 bg-gray-900/50 backdrop-blur-sm border-b border-gray-700/50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-16">
+                <div class="flex items-center space-x-4">
+                    <a href="index.html" class="p-2 rounded-md text-gray-400 hover:text-white hover:bg-gray-700 transition-colors">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
+                        </svg>
+                    </a>
+                    <h1 class="text-xl font-bold bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">
+                        添加元器件
+                    </h1>
+                </div>
+                
+                <div class="flex items-center space-x-2 sm:space-x-4">
+                    <button id="resetFormBtn" class="text-gray-400 hover:text-white hover:bg-gray-700 p-2 rounded-md transition-colors" title="重置表单">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                        </svg>
+                    </button>
+                    <button id="saveAndContinueBtn" class="btn-primary px-3 sm:px-4 py-2 text-sm">
+                        保存并继续
+                    </button>
+                    <button id="saveAndReturnBtn" class="btn-secondary px-3 sm:px-4 py-2 text-sm">
+                        保存并返回
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-20 pb-8">
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <!-- 表单区域 -->
+            <div class="lg:col-span-2 space-y-6">
+                <!-- 基本信息 -->
+                <div class="form-card p-6 fade-in">
+                    <h2 class="text-lg font-semibold mb-6 flex items-center">
+                        <div class="w-8 h-8 bg-blue-500/20 rounded-lg flex items-center justify-center mr-3">
+                            <svg class="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                            </svg>
+                        </div>
+                        基本信息
+                    </h2>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-300 mb-2">
+                                元器件名称 <span class="text-red-400">*</span>
+                            </label>
+                            <input type="text" id="componentName" required 
+                                   class="form-input w-full px-4 py-3 text-white placeholder-gray-500"
+                                   placeholder="请输入元器件名称">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-300 mb-2">
+                                型号规格 <span class="text-red-400">*</span>
+                            </label>
+                            <input type="text" id="componentModel" required 
+                                   class="form-input w-full px-4 py-3 text-white placeholder-gray-500"
+                                   placeholder="如: CF1/4W-1KΩ-J">
+                        </div>
+                    </div>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-300 mb-2">
+                                品牌
+                            </label>
+                            <input type="text" id="componentBrand"
+                                   class="form-input w-full px-4 py-3 text-white placeholder-gray-500"
+                                   placeholder="如: Murata、Yageo、ST">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-300 mb-2">
+                                商品编码
+                            </label>
+                            <input type="text" id="componentProductCode"
+                                   class="form-input w-full px-4 py-3 text-white placeholder-gray-500"
+                                   placeholder="如：PNP-2024-001">
+                        </div>
+                    </div>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-300 mb-2">
+                                类别 <span class="text-red-400">*</span>
+                            </label>
+                            <select id="componentCategory" required
+                                    class="form-input w-full px-4 py-3 text-white">
+                                <option value="">请选择类别</option>
+                                <option value="resistor">电阻</option>
+                                <option value="capacitor">电容</option>
+                                <option value="inductor">电感</option>
+                                <option value="transistor">三极管</option>
+                                <option value="mosfet">MOS管</option>
+                                <option value="diode">二极管</option>
+                                <option value="led">LED</option>
+                                <option value="ic">集成电路</option>
+                                <option value="switch">开关</option>
+                                <option value="crystal">晶振</option>
+                                <option value="other">其他</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-300 mb-2">子类别</label>
+                            <select id="componentSubCategory"
+                                    class="form-select w-full px-4 py-3 text-white bg-gray-800 border border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                                <option value="">请先选择类别</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div id="paramFields" class="mt-6">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-300 mb-2">参数值</label>
+                            <input type="text" id="componentValue"
+                                   class="form-input w-full px-4 py-3 text-white placeholder-gray-500"
+                                   placeholder="如: 1kΩ, 100μF, NPN">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 库存信息 -->
+                <div class="form-card p-6 fade-in">
+                    <h2 class="text-lg font-semibold mb-6 flex items-center">
+                        <div class="w-8 h-8 bg-yellow-500/20 rounded-lg flex items-center justify-center mr-3">
+                            <svg class="w-4 h-4 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path>
+                            </svg>
+                        </div>
+                        库存信息
+                    </h2>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-300 mb-2">
+                                初始库存 <span class="text-red-400">*</span>
+                            </label>
+                            <input type="number" id="componentStock" min="0" required
+                                   class="form-input w-full px-4 py-3 text-white placeholder-gray-500"
+                                   placeholder="请输入库存数量">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-300 mb-2">
+                                预警阈值 <span class="text-red-400">*</span>
+                            </label>
+                            <input type="number" id="componentThreshold" min="0" required
+                                   class="form-input w-full px-4 py-3 text-white placeholder-gray-500"
+                                   placeholder="低于此数量时预警">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-300 mb-2">
+                                价格（元）
+                            </label>
+                            <input type="number" id="componentPrice" min="0" step="any"
+                                   class="form-input w-full px-4 py-3 text-white placeholder-gray-500"
+                                   placeholder="可选">
+                        </div>
+                    </div>
+                    
+                    <div class="mt-6">
+                        <label class="block text-sm font-medium text-gray-300 mb-2">存放位置</label>
+                        <div class="flex gap-2">
+                            <input type="text" id="componentLocation"
+                                   class="form-input w-48 px-4 py-3 text-white placeholder-gray-500"
+                                   placeholder="如: A1-3, B2-5">
+                            <button type="button" id="autoComponentLocationBtn" class="px-4 py-3 bg-gradient-to-r from-blue-600 to-cyan-500 hover:from-blue-500 hover:to-cyan-400 text-white rounded-lg transition-all duration-300 text-sm whitespace-nowrap flex items-center gap-2 shadow-lg shadow-blue-600/20 hover:shadow-blue-600/40 hover:scale-105" title="自动分配最小可用编号">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                                </svg>
+                                <span>自动分配</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 附加信息 -->
+                <div class="form-card p-6 fade-in">
+                    <h2 class="text-lg font-semibold mb-6 flex items-center">
+                        <div class="w-8 h-8 bg-green-500/20 rounded-lg flex items-center justify-center mr-3">
+                            <svg class="w-4 h-4 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 8h10m0 0V6a2 2 0 00-2-2H9a2 2 0 00-2 2v2m0 0v8a2 2 0 002 2h6a2 2 0 002-2V8"></path>
+                            </svg>
+                        </div>
+                        附加信息
+                    </h2>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-300 mb-2">备注信息</label>
+                        <textarea id="componentNotes" rows="4"
+                                  class="form-input w-full px-4 py-3 text-white placeholder-gray-500 resize-none"
+                                  placeholder="请输入备注信息，如用途、供应商等"></textarea>
+                    </div>
+
+                    <div class="mt-6">
+                        <label class="block text-sm font-medium text-gray-300 mb-2">数据手册</label>
+                        <div class="relative">
+                            <input type="url" id="componentDatasheet"
+                                   class="form-input w-full px-4 py-3 pr-12 text-white placeholder-gray-500"
+                                   placeholder="https://example.com/datasheet.pdf">
+                            <svg class="absolute right-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                            </svg>
+                        </div>
+                        <p class="text-sm text-gray-500 mt-2">可选：输入数据手册（Datasheet）的在线链接，方便查看元器件规格</p>
+                        <div class="flex items-center space-x-2 mt-2">
+                            <span class="text-gray-500 text-sm">或</span>
+                            <label class="cursor-pointer bg-gray-600 hover:bg-gray-500 text-white text-sm px-3 py-1.5 rounded-lg transition-colors inline-flex items-center space-x-1">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path>
+                                </svg>
+                                <span>上传本地文件</span>
+                                <input type="file" id="addComponentDatasheetFile" accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.png,.jpg,.jpeg" class="hidden">
+                            </label>
+                        </div>
+                        <div id="addDatasheetFileInfo" class="hidden flex items-center justify-between bg-gray-700 rounded-lg p-2 mt-2">
+                            <div class="flex items-center space-x-2 truncate flex-1">
+                                <svg class="w-4 h-4 text-blue-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                                </svg>
+                                <span id="addDatasheetFileName" class="text-sm text-gray-300 truncate"></span>
+                            </div>
+                            <button class="text-red-400 hover:text-red-300 p-1 shrink-0" title="移除文件" onclick="addComponentManager.removeDatasheetFile()">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="mt-6">
+                        <label class="block text-sm font-medium text-gray-300 mb-2">元器件图片</label>
+                        <input type="url" id="componentImage"
+                               class="form-input w-full px-4 py-3 text-white placeholder-gray-500"
+                               placeholder="https://example.com/image.jpg">
+                        <p class="text-sm text-gray-500 mt-2">可选：输入图片的在线链接，留空则使用默认图片</p>
+                    </div>
+                </div>
+
+                <!-- 快速模板 -->
+                <div class="form-card p-6 fade-in">
+                    <h2 class="text-lg font-semibold mb-6 flex items-center justify-between">
+                        <div class="flex items-center">
+                            <div class="w-8 h-8 bg-purple-500/20 rounded-lg flex items-center justify-center mr-3">
+                                <svg class="w-4 h-4 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path>
+                                </svg>
+                            </div>
+                            快速模板
+                        </div>
+                        <button id="manageTemplatesBtn" class="px-3 py-1 text-sm bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors flex items-center space-x-1">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                            </svg>
+                            <span>管理模板</span>
+                        </button>
+                    </h2>
+
+                    <!-- 提示信息 -->
+                    <div id="noTemplatesHint" class="text-center py-8 text-gray-400">
+                        <svg class="w-12 h-12 mx-auto mb-3 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path>
+                        </svg>
+                        <p class="text-sm">暂无模板</p>
+                        <p class="text-xs mt-1">点击"管理模板"按钮添加自定义模板</p>
+                    </div>
+
+                    <!-- 自定义模板 -->
+                    <div id="customTemplatesSection" class="hidden">
+                        <div id="customTemplatesList" class="space-y-5"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 预览区域 -->
+            <div class="lg:col-span-1">
+                <div class="preview-card p-3 sm:p-4 lg:p-6 fade-in">
+                    <h2 class="text-lg font-semibold mb-6 flex items-center">
+                        <div class="w-8 h-8 bg-indigo-500/20 rounded-lg flex items-center justify-center mr-3">
+                            <svg class="w-4 h-4 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+                            </svg>
+                        </div>
+                        实时预览
+                    </h2>
+                    
+                    <div id="componentPreview">
+                        <div class="text-center py-8">
+                            <div class="w-16 h-16 bg-gray-700 rounded-full flex items-center justify-center mx-auto mb-4">
+                                <svg class="w-8 h-8 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path>
+                                </svg>
+                            </div>
+                            <p class="text-gray-400">填写信息查看预览</p>
+                        </div>
+                    </div>
+                </div>
+                
+
+            </div>
+        </div>
+    </div>
+
+    <script>
+        class AddComponentManager {
+            constructor() {
+                this.formData = {};
+                this.editingTemplateId = null; // 当前正在编辑的模板ID
+                this.pendingDatasheetFileData = null; // 暂存上传的数据手册文件
+                this.init();
+            }
+            
+            init() {
+                this.bindEvents();
+                this.initAnimations();
+                this.loadTemplates();
+                this.updateSubCategoryOptions();
+                this.updateParamFields();
+                this.loadCustomCategoriesIntoForm();
+            }
+
+            // 将自定义类别动态追加到表单下拉框
+            loadCustomCategoriesIntoForm() {
+                const custom = JSON.parse(localStorage.getItem('customCategories') || '[]');
+                const builtInKeys = ['resistor', 'capacitor', 'inductor', 'transistor', 'mosfet', 'diode', 'led', 'ic', 'switch', 'crystal', 'other'];
+                custom.forEach(cat => {
+                    if (builtInKeys.includes(cat.key)) return; // 不重复添加
+                    ['componentCategory', 'templateCategory'].forEach(selectId => {
+                        const select = document.getElementById(selectId);
+                        if (!select) return;
+                        // 跳过已存在的
+                        if (select.querySelector(`option[value="${cat.key}"]`)) return;
+                        const opt = document.createElement('option');
+                        opt.value = cat.key;
+                        opt.textContent = cat.name;
+                        select.appendChild(opt);
+                    });
+                });
+            }
+            
+            bindEvents() {
+                // 表单输入事件
+                const inputs = ['componentName', 'componentModel', 'componentBrand', 'componentCategory', 'componentValue',
+                               'componentStock', 'componentThreshold', 'componentLocation', 'componentNotes',
+                               'componentProductCode', 'componentPrice'];
+
+                inputs.forEach(id => {
+                    const element = document.getElementById(id);
+                    if (element) {
+                        element.addEventListener('input', () => this.updatePreview());
+                        element.addEventListener('change', () => this.updatePreview());
+                    }
+                });
+
+                // 类别切换时更新子类别
+                document.getElementById('componentCategory').addEventListener('change', () => {
+                    this.updateSubCategoryOptions();
+                    this.updateParamFields();
+                    this.updatePreview();
+                });
+                
+                // 子类别切换时重新渲染分化参数
+                document.getElementById('componentSubCategory').addEventListener('change', () => {
+                    this.updateParamFields();
+                    this.updatePreview();
+                });
+
+                // 图片链接输入监听
+                document.getElementById('componentImage').addEventListener('input', () => {
+                    this.updatePreview();
+                });
+
+                // 数据手册链接输入监听
+                document.getElementById('componentDatasheet').addEventListener('input', () => {
+                    this.updatePreview();
+                });
+
+                // 数据手册文件上传事件
+                const datasheetFileInput = document.getElementById('addComponentDatasheetFile');
+                if (datasheetFileInput) {
+                    datasheetFileInput.addEventListener('change', (e) => {
+                        this.handleDatasheetFileUpload(e);
+                    });
+                }
+
+                document.getElementById('resetFormBtn').addEventListener('click', () => {
+                    this.resetForm();
+                });
+
+                document.getElementById('saveAndContinueBtn').addEventListener('click', () => {
+                    this.saveAndContinue();
+                });
+
+                document.getElementById('saveAndReturnBtn').addEventListener('click', () => {
+                    this.saveAndReturn();
+                });
+
+                // 全页面 Enter 键支持：按 Enter 触发保存
+
+                // 自动分配位置编号按钮
+                const autoComponentLocationBtn = document.getElementById('autoComponentLocationBtn');
+                if (autoComponentLocationBtn) {
+                    autoComponentLocationBtn.addEventListener('click', () => this.autoAssignComponentLocation());
+                }
+
+                // 模板管理
+                const manageTemplatesBtn = document.getElementById('manageTemplatesBtn');
+                if (manageTemplatesBtn) {
+                    manageTemplatesBtn.addEventListener('click', () => this.openTemplateManager());
+                }
+
+                const closeTemplateManager = document.getElementById('closeTemplateManager');
+                if (closeTemplateManager) {
+                    closeTemplateManager.addEventListener('click', () => this.closeTemplateManager());
+                }
+
+                // 添加模板表单
+                const addTemplateForm = document.getElementById('addTemplateForm');
+                if (addTemplateForm) {
+                    addTemplateForm.addEventListener('submit', (e) => this.addTemplate(e));
+                }
+
+                // 取消编辑模板按钮
+                const cancelEditTemplateBtn = document.getElementById('cancelEditTemplate');
+                if (cancelEditTemplateBtn) {
+                    cancelEditTemplateBtn.addEventListener('click', () => this.cancelEditTemplate());
+                }
+
+                // 模板表单 - 类别切换时更新子类别和参数
+                const templateCategorySelect = document.getElementById('templateCategory');
+                if (templateCategorySelect) {
+                    templateCategorySelect.addEventListener('change', () => {
+                        this.updateTemplateSubCategoryOptions();
+                        this.updateTemplateParamFields();
+                    });
+                }
+
+                // 模板表单 - 子类别切换时更新参数
+                const templateSubCategorySelect = document.getElementById('templateSubCategory');
+                if (templateSubCategorySelect) {
+                    templateSubCategorySelect.addEventListener('change', () => {
+                        this.updateTemplateParamFields();
+                    });
+                }
+            }
+
+            initAnimations() {
+                anime({
+                    targets: '.fade-in',
+                    opacity: [0, 1],
+                    translateY: [20, 0],
+                    delay: anime.stagger(100),
+                    duration: 600,
+                    easing: 'easeOutQuart'
+                });
+            }
+            
+            updatePreview() {
+                const name = document.getElementById('componentName').value || '元器件名称';
+                const model = document.getElementById('componentModel').value || '型号规格';
+                const brand = document.getElementById('componentBrand').value || '';
+                const productCode = document.getElementById('componentProductCode').value || '';
+                const category = document.getElementById('componentCategory').value || '';
+                const subCategory = document.getElementById('componentSubCategory').value || '';
+                
+                // 根据类别读取参数值（支持分化参数）
+                let value = '-';
+                let defs = null;
+                if (subCategory && this.subCategoryParamDefinitions[category] && this.subCategoryParamDefinitions[category][subCategory]) {
+                    defs = this.subCategoryParamDefinitions[category][subCategory];
+                }
+                if (!defs) {
+                    defs = this.paramDefinitions[category];
+                }
+                if (defs) {
+                    const vals = [];
+                    defs.forEach(def => {
+                        const v = document.getElementById('param-' + def.id);
+                        const u = document.getElementById('param-unit-' + def.id);
+                        if (v && v.value) {
+                            vals.push(v.value + (u ? u.value : (def.defaultUnit || '')));
+                        }
+                    });
+                    if (vals.length > 0) value = vals.join('|');
+                } else {
+                    const el = document.getElementById('componentValue');
+                    if (el) value = el.value || '-';
+                }
+                
+                const stock = parseInt(document.getElementById('componentStock').value) || 0;
+                const threshold = parseInt(document.getElementById('componentThreshold').value) || 0;
+                const price = parseFloat(document.getElementById('componentPrice')?.value) || 0;
+                const location = document.getElementById('componentLocation').value || '-';
+                
+                const categoryNames = {
+                    resistor: '电阻',
+                    capacitor: '电容',
+                    inductor: '电感',
+                    transistor: '三极管',
+                    mosfet: 'MOS管',
+                    diode: '二极管',
+                    led: 'LED',
+                    crystal: '晶振',
+                    ic: '集成电路',
+                    switch: '开关',
+                    other: '其他'
+                };
+                
+                const stockStatus = stock === 0 ? 'empty' : stock <= threshold ? 'warning' : 'full';
+                const stockColors = {
+                    full: 'bg-green-500',
+                    warning: 'bg-yellow-500',
+                    empty: 'bg-red-500'
+                };
+                const stockText = {
+                    full: '充足',
+                    warning: '预警',
+                    empty: '缺货'
+                };
+                
+                const stockPercent = Math.min(100, (stock / Math.max(threshold * 3, 1)) * 100);
+                const previewImage = document.getElementById('componentImage').value.trim() || this.getDefaultImage(category);
+                // 支持自定义类别名称显示
+                const customCats = JSON.parse(localStorage.getItem('customCategories') || '[]');
+                const catName = categoryNames[category] || customCats.find(c => c.key === category)?.name || category;
+                const categoryDisplay = catName + (subCategory ? ' / ' + subCategory : '');
+                
+                // 生成与主页 getComponentCardHTML 完全一致的卡片结构
+                const previewHTML = `
+                    <div class="flex items-start justify-between mb-2 sm:mb-3 lg:mb-4">
+                        <div class="flex-1">
+                            <h3 class="text-sm sm:text-base lg:text-lg font-semibold text-white mb-0.5">${name}</h3>
+                            <p class="text-xs sm:text-sm text-gray-400 truncate">${model}</p>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <div class="w-3 h-3 rounded-full ${stockColors[stockStatus]}"></div>
+                            <span class="text-xs text-gray-400">${stockText[stockStatus]}</span>
+                        </div>
+                    </div>
+
+                    <div class="mb-2 sm:mb-3 lg:mb-4">
+                        <img src="${previewImage}" alt="${name}"
+                             class="w-full h-20 sm:h-28 lg:h-32 object-cover rounded-lg bg-gray-700"
+                             onerror="this.src='resources/images/hero-circuit-board.png'">
+                    </div>
+
+                    <div class="space-y-1 sm:space-y-1.5 lg:space-y-2 mb-2 sm:mb-3 lg:mb-4">
+                        <div class="flex justify-between text-xs sm:text-sm">
+                            <span class="text-gray-400">类别:</span>
+                            <span class="text-white">${categoryDisplay}</span>
+                        </div>
+                        <div class="flex justify-between text-sm">
+                            <span class="text-gray-400">品牌:</span>
+                            <span class="text-white">${brand || '-'}</span>
+                        </div>
+                        <div class="flex justify-between text-sm">
+                            <span class="text-gray-400">商品编码:</span>
+                            <span class="text-white">${productCode || '-'}</span>
+                        </div>
+                        <div class="flex justify-between text-sm">
+                            <span class="text-gray-400">参数:</span>
+                            <span class="text-white">${value}</span>
+                        </div>
+                        <div class="flex justify-between text-sm">
+                            <span class="text-gray-400">位置:</span>
+                            <span class="text-white">${location}</span>
+                        </div>
+                    </div>
+
+                    <div class="flex items-center justify-between mb-2 sm:mb-3 lg:mb-4">
+                        <div class="flex items-center space-x-3">
+                            <button class="quantity-btn-compact sm:quantity-btn">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4"></path>
+                                </svg>
+                            </button>
+                            <div class="text-center">
+                                <div class="stock-text text-base sm:text-lg font-bold text-white">${stock}</div>
+                                <div class="text-xs text-gray-400">库存</div>
+                            </div>
+                            <button class="quantity-btn-compact sm:quantity-btn">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="stock-indicator h-1.5 sm:h-2 bg-gray-700 rounded-full overflow-hidden mb-2 sm:mb-3 lg:mb-4">
+                        <div class="h-full ${stockColors[stockStatus]} transition-all duration-300"
+                             style="width: ${stockPercent}%"></div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-2 mb-2">
+                        <button class="py-1.5 sm:py-2 text-xs sm:text-sm rounded-lg border-2 border-orange-400 text-orange-400 hover:bg-orange-400 hover:text-white transition-all duration-300 flex items-center justify-center space-x-1">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"></path>
+                            </svg>
+                            <span>出库</span>
+                        </button>
+                        <button class="py-1.5 sm:py-2 text-xs sm:text-sm rounded-lg border-2 border-green-400 text-green-400 hover:bg-green-400 hover:text-white transition-all duration-300 flex items-center justify-center space-x-1">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+                            </svg>
+                            <span>入库</span>
+                        </button>
+                    </div>
+
+                    <button class="w-full btn-primary py-1.5 sm:py-2 text-xs sm:text-sm">
+                        查看详情
+                    </button>
+                `;
+                
+                document.getElementById('componentPreview').innerHTML = previewHTML;
+            }
+            
+            loadTemplates() {
+                this.templates = {};
+
+                // 加载自定义模板
+                this.loadCustomTemplates();
+            }
+
+            // 加载自定义模板
+            loadCustomTemplates() {
+                try {
+                    const saved = localStorage.getItem('customTemplates');
+                    if (saved) {
+                        const customTemplates = JSON.parse(saved);
+                        Object.assign(this.templates, customTemplates);
+                    }
+                } catch (error) {
+                    console.error('加载自定义模板失败:', error);
+                }
+
+                // 渲染自定义模板到页面
+                this.renderTemplateCards();
+            }
+
+            // 保存自定义模板
+            saveCustomTemplates() {
+                const customTemplates = {};
+                Object.keys(this.templates).forEach(key => {
+                    if (key.startsWith('custom-')) {
+                        customTemplates[key] = this.templates[key];
+                    }
+                });
+                localStorage.setItem('customTemplates', JSON.stringify(customTemplates));
+            }
+
+            // 打开模板管理模态框
+            openTemplateManager() {
+                document.getElementById('templateManagerModal').classList.remove('hidden');
+                this.renderTemplatesList();
+            }
+
+            // 关闭模板管理模态框
+            closeTemplateManager() {
+                document.getElementById('templateManagerModal').classList.add('hidden');
+            }
+
+            // 渲染模板列表
+            renderTemplatesList() {
+                const container = document.getElementById('templatesList');
+                container.innerHTML = '';
+
+                // 按分类分组
+                const categoryGroups = {};
+                Object.keys(this.templates).forEach(key => {
+                    const template = this.templates[key];
+                    if (!categoryGroups[template.category]) {
+                        categoryGroups[template.category] = [];
+                    }
+                    categoryGroups[template.category].push({ id: key, ...template });
+                });
+
+                // 渲染每个分类
+                const categoryNames = {
+                    resistor: '电阻',
+                    capacitor: '电容',
+                    inductor: '电感',
+                    transistor: '三极管',
+                    mosfet: 'MOS管',
+                    diode: '二极管',
+                    led: 'LED',
+                    ic: '集成电路',
+                    switch: '开关',
+                    crystal: '晶振',
+                    other: '其他'
+                };
+
+                Object.keys(categoryGroups).sort().forEach(category => {
+                    const groupDiv = document.createElement('div');
+                    groupDiv.className = 'mb-6';
+
+                    const categoryTitle = document.createElement('h4');
+                    categoryTitle.className = 'text-sm font-semibold text-gray-300 mb-3';
+                    categoryTitle.textContent = categoryNames[category] || category;
+                    groupDiv.appendChild(categoryTitle);
+
+                    const templatesGrid = document.createElement('div');
+                    templatesGrid.className = 'grid grid-cols-1 md:grid-cols-2 gap-3';
+
+                    categoryGroups[category].forEach(template => {
+                        const isCustom = template.id.startsWith('custom-');
+                        const templateDiv = document.createElement('div');
+                        templateDiv.className = `bg-gray-700/50 rounded-lg p-3 ${isCustom ? 'border border-green-500/30' : ''}`;
+
+                        const headerDiv = document.createElement('div');
+                        headerDiv.className = 'flex items-start justify-between mb-1';
+
+                        const nameDiv = document.createElement('div');
+                        nameDiv.className = 'flex-1';
+
+                        const nameSpan = document.createElement('div');
+                        nameSpan.className = 'font-medium text-white text-sm';
+                        nameSpan.textContent = template.name || '未命名';
+                        nameDiv.appendChild(nameSpan);
+
+                        const valueSpan = document.createElement('div');
+                        valueSpan.className = 'text-xs text-gray-400';
+                        valueSpan.textContent = `${template.model} | ${template.value}`;
+                        nameDiv.appendChild(valueSpan);
+
+                        // 显示自定义显示文字（如果有）
+                        if (template.displayText && template.displayText.trim()) {
+                            const displayTextSpan = document.createElement('div');
+                            displayTextSpan.className = 'text-xs text-green-400 mt-0.5';
+                            displayTextSpan.innerHTML = `<span class="text-gray-500">显示:</span> ${template.displayText.trim()}`;
+                            nameDiv.appendChild(displayTextSpan);
+                        }
+
+                        // 显示品牌和商品编码
+                        if (template.brand) {
+                            const brandSpan = document.createElement('div');
+                            brandSpan.className = 'text-xs text-gray-400';
+                            brandSpan.textContent = `品牌: ${template.brand}`;
+                            nameDiv.appendChild(brandSpan);
+                        }
+                        if (template.productCode) {
+                            const codeSpan = document.createElement('div');
+                            codeSpan.className = 'text-xs text-gray-400';
+                            codeSpan.textContent = `编码: ${template.productCode}`;
+                            nameDiv.appendChild(codeSpan);
+                        }
+
+                        headerDiv.appendChild(nameDiv);
+
+                        // 只允许删除自定义模板
+                        if (isCustom) {
+                            const actionsDiv = document.createElement('div');
+                            actionsDiv.className = 'flex items-center space-x-1';
+
+                            // 编辑按钮
+                            const editBtn = document.createElement('button');
+                            editBtn.className = 'p-0.5 hover:bg-blue-600/50 rounded transition-colors text-blue-400';
+                            editBtn.innerHTML = `
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
+                                </svg>
+                            `;
+                            editBtn.title = '编辑模板';
+                            editBtn.addEventListener('click', (e) => {
+                                e.stopPropagation();
+                                this.editTemplate(template.id);
+                            });
+                            actionsDiv.appendChild(editBtn);
+
+                            // 删除按钮
+                            const deleteBtn = document.createElement('button');
+                            deleteBtn.className = 'p-0.5 hover:bg-red-600/50 rounded transition-colors text-red-400';
+                            deleteBtn.innerHTML = `
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                                </svg>
+                            `;
+                            deleteBtn.title = '删除模板';
+                            deleteBtn.addEventListener('click', (e) => {
+                                e.stopPropagation();
+                                this.deleteTemplate(template.id);
+                            });
+                            actionsDiv.appendChild(deleteBtn);
+
+                            headerDiv.appendChild(actionsDiv);
+                        }
+
+                        templateDiv.appendChild(headerDiv);
+
+                        const detailsDiv = document.createElement('div');
+                        detailsDiv.className = 'grid grid-cols-2 gap-1 text-xs text-gray-400';
+
+                        detailsDiv.innerHTML = `
+                            <div>库存: ${template.stock}</div>
+                            <div>预警: ${template.threshold}</div>
+                            <div class="col-span-2">备注: ${template.notes || '-'}</div>
+                        `;
+                        templateDiv.appendChild(detailsDiv);
+
+                        // 点击模板应用
+                        templateDiv.style.cursor = 'pointer';
+                        templateDiv.addEventListener('click', (e) => {
+                            // 如果点击的是删除按钮，不应用模板
+                            if (e.target.closest('button')) return;
+                            this.applyTemplate(template.id);
+                            this.closeTemplateManager();
+                        });
+
+                        templatesGrid.appendChild(templateDiv);
+                    });
+
+                    groupDiv.appendChild(templatesGrid);
+                    container.appendChild(groupDiv);
+                });
+            }
+
+            // 更新模板表单的子类别选项
+            updateTemplateSubCategoryOptions() {
+                const category = document.getElementById('templateCategory').value;
+                const subCategorySelect = document.getElementById('templateSubCategory');
+                if (!subCategorySelect) return;
+
+                subCategorySelect.innerHTML = '<option value="">' + (category ? '选择子类别' : '请先选择分类') + '</option>';
+                
+                if (!category) return;
+
+                // 从 localStorage 读取子类别配置
+                const saved = localStorage.getItem('subCategorySettings');
+                let settings = null;
+                if (saved) {
+                    try { settings = JSON.parse(saved); } catch (e) {}
+                }
+
+                const defaults = {
+                    resistor: ['贴片电阻', '金属膜电阻', '碳膜电阻', '线绕电阻', '电位器', 'NTC热敏电阻', '可变电阻'],
+                    capacitor: ['陶瓷电容', '铝电解电容', '钽电容', '薄膜电容', 'MLCC贴片电容', '可变电容', '超级电容'],
+                    inductor: ['功率电感', '贴片电感', '滤波电感', '射频电感', '变压器', '扼流圈', '磁环电感'],
+                    transistor: ['NPN三极管', 'PNP三极管', '达林顿管', '光敏三极管', '射频三极管'],
+                    mosfet: ['N沟道MOS', 'P沟道MOS', '双MOS', 'LDO MOS'],
+                    diode: ['整流二极管', '肖特基二极管', '稳压二极管', 'TVS二极管', '发光二极管', '光电二极管', '整流桥'],
+                    led: ['贴片LED', '直插LED', 'RGB LED', '大功率LED', '红外LED', '紫外LED', '数码管'],
+                    ic: ['单片机', '线性稳压器(LDO)', 'DC-DC电源芯片', 'LED驱动', '电池管理', '运算放大器', '逻辑门', '存储器', '接口IC'],
+                    switch: ['轻触开关', '拨动开关', '旋转开关', 'DIP开关', '微动开关', '船形开关'],
+                    crystal: ['HC49晶振', '贴片晶振', '有源晶振', '温补晶振'],
+                    other: ['连接器', '保险丝', '继电器', '传感器', '线材', 'PCB板']
+                };
+
+                const items = (settings && settings[category]) ? settings[category] : (defaults[category] || []);
+
+                items.forEach(subCat => {
+                    const option = document.createElement('option');
+                    option.value = subCat;
+                    option.textContent = subCat;
+                    subCategorySelect.appendChild(option);
+                });
+            }
+
+            // 更新模板表单的分化参数字段
+            updateTemplateParamFields() {
+                const container = document.getElementById('templateParamFields');
+                if (!container) return;
+
+                const category = document.getElementById('templateCategory').value;
+                const subCategory = document.getElementById('templateSubCategory').value;
+
+                // 子类别关联定义优先
+                let defs = null;
+                if (subCategory && this.subCategoryParamDefinitions[category] && this.subCategoryParamDefinitions[category][subCategory]) {
+                    defs = this.subCategoryParamDefinitions[category][subCategory];
+                }
+                if (!defs) {
+                    defs = this.paramDefinitions[category];
+                }
+                // 自定义分化参数 fallback
+                if (!defs) {
+                    const customParams = JSON.parse(localStorage.getItem('customParamDefinitions') || '{}');
+                    defs = customParams[category] || null;
+                }
+
+                if (!defs) {
+                    container.innerHTML = '<label class="block text-sm font-medium text-gray-300 mb-2">参数值</label>' +
+                        '<input type="text" id="templateValue" class="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:border-green-400 focus:outline-none" placeholder="如：1kΩ, 100μF, NPN">';
+                    return;
+                }
+
+                let html = '';
+                defs.forEach(def => {
+                    html += '<div class="mb-3">' +
+                        '<label class="block text-sm font-medium text-gray-300 mb-2">' + def.label + '</label>' +
+                        '<div class="flex space-x-2">' +
+                        '<input type="text" id="template-param-' + def.id + '" value="" class="flex-1 px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:border-green-400 focus:outline-none" placeholder="输入' + def.label + '">';
+                    if (def.units && def.units.length > 0) {
+                        html += '<select id="template-param-unit-' + def.id + '" class="w-24 px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:border-green-400 focus:outline-none">';
+                        def.units.forEach(u => {
+                            html += '<option value="' + u + '"' + (u === def.defaultUnit ? ' selected' : '') + '>' + u + '</option>';
+                        });
+                        html += '</select>';
+                    }
+                    html += '</div></div>';
+                });
+                container.innerHTML = html;
+            }
+
+            // 收集模板表单的参数值
+            collectTemplateParams() {
+                const category = document.getElementById('templateCategory').value;
+                const subCategory = document.getElementById('templateSubCategory').value;
+                
+                // 子类别关联定义优先
+                let defs = null;
+                if (subCategory && this.subCategoryParamDefinitions[category] && this.subCategoryParamDefinitions[category][subCategory]) {
+                    defs = this.subCategoryParamDefinitions[category][subCategory];
+                }
+                if (!defs) {
+                    defs = this.paramDefinitions[category];
+                }
+
+                if (!defs) {
+                    const valueEl = document.getElementById('templateValue');
+                    return valueEl ? valueEl.value : '';
+                }
+
+                const params = {};
+                let hasAnyValue = false;
+                defs.forEach(def => {
+                    const input = document.getElementById('template-param-' + def.id);
+                    const value = input ? input.value.trim() : '';
+                    let unit = '';
+                    if (def.units && def.units.length > 0) {
+                        const unitSelect = document.getElementById('template-param-unit-' + def.id);
+                        unit = unitSelect ? unitSelect.value : (def.defaultUnit || '');
+                    }
+                    params[def.id] = { value, unit };
+                    if (value) hasAnyValue = true;
+                });
+
+                return hasAnyValue ? JSON.stringify(params) : '';
+            }
+
+            // 添加或更新模板
+            addTemplate(e) {
+                e.preventDefault();
+
+                const template = {
+                    name: document.getElementById('templateName').value,
+                    category: document.getElementById('templateCategory').value,
+                    subCategory: document.getElementById('templateSubCategory').value || '',
+                    model: document.getElementById('templateModel').value,
+                    brand: document.getElementById('templateBrand').value,
+                    productCode: document.getElementById('templateProductCode').value,
+                    value: addComponentManager.collectTemplateParams(),
+                    stock: parseInt(document.getElementById('templateStock').value) || 0,
+                    threshold: parseInt(document.getElementById('templateThreshold').value) || 0,
+                    location: '',
+                    notes: document.getElementById('templateNotes').value,
+                    image: document.getElementById('templateImage').value || '',
+                    displayText: document.getElementById('templateDisplayText').value // 自定义显示文字
+                };
+
+                if (this.editingTemplateId) {
+                    // 更新现有模板
+                    this.templates[this.editingTemplateId] = template;
+                    this.showNotification('模板更新成功！', 'success');
+                } else {
+                    // 创建新模板
+                    const templateId = 'custom-' + Date.now();
+                    this.templates[templateId] = template;
+                    this.showNotification('模板添加成功！', 'success');
+                }
+
+                // 保存到 localStorage
+                this.saveCustomTemplates();
+
+                // 重置表单和编辑状态
+                this.cancelEditTemplate();
+
+                // 重新渲染模板列表
+                this.renderTemplatesList();
+                this.renderTemplateCards();
+            }
+
+            // 编辑模板
+            editTemplate(templateId) {
+                const template = this.templates[templateId];
+                if (!template) return;
+
+                // 设置编辑状态
+                this.editingTemplateId = templateId;
+
+                // 填充表单
+                document.getElementById('templateName').value = template.name || '';
+                document.getElementById('templateCategory').value = template.category || '';
+                
+                // 先更新子类别选项，再设置子类别值
+                this.updateTemplateSubCategoryOptions();
+                document.getElementById('templateSubCategory').value = template.subCategory || '';
+                
+                // 更新分化参数字段
+                this.updateTemplateParamFields();
+                
+                // 填充参数值
+                const category = template.category || '';
+                const subCategory = template.subCategory || '';
+                let defs = null;
+                if (subCategory && this.subCategoryParamDefinitions[category] && this.subCategoryParamDefinitions[category][subCategory]) {
+                    defs = this.subCategoryParamDefinitions[category][subCategory];
+                }
+                if (!defs) {
+                    defs = this.paramDefinitions[category];
+                }
+                
+                if (defs && template.value) {
+                    // 尝试解析JSON格式的参数
+                    try {
+                        const params = JSON.parse(template.value);
+                        defs.forEach(def => {
+                            if (params[def.id]) {
+                                const input = document.getElementById('template-param-' + def.id);
+                                if (input) input.value = params[def.id].value || '';
+                                if (def.units && def.units.length > 0) {
+                                    const unitSelect = document.getElementById('template-param-unit-' + def.id);
+                                    if (unitSelect) unitSelect.value = params[def.id].unit || def.defaultUnit || '';
+                                }
+                            }
+                        });
+                    } catch (e) {
+                        // 旧格式：纯文本值，填入第一个参数输入框
+                        const firstInput = document.getElementById('templateValue');
+                        if (firstInput) firstInput.value = template.value || '';
+                    }
+                } else if (!defs) {
+                    // 无分化参数，直接填入templateValue
+                    const valueEl = document.getElementById('templateValue');
+                    if (valueEl) valueEl.value = template.value || '';
+                }
+                
+                document.getElementById('templateModel').value = template.model || '';
+                document.getElementById('templateBrand').value = template.brand || '';
+                document.getElementById('templateProductCode').value = template.productCode || '';
+                document.getElementById('templateStock').value = template.stock || 0;
+                document.getElementById('templateThreshold').value = template.threshold || 0;
+                document.getElementById('templateNotes').value = template.notes || '';
+                document.getElementById('templateImage').value = template.image || '';
+                document.getElementById('templateDisplayText').value = template.displayText || '';
+
+                // 更新UI
+                const formTitle = document.getElementById('templateFormTitle');
+                formTitle.innerHTML = `
+                    <svg class="w-5 h-5 mr-2 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
+                    </svg>
+                    编辑模板
+                `;
+
+                document.getElementById('templateSubmitBtn').textContent = '更新模板';
+                document.getElementById('cancelEditTemplate').classList.remove('hidden');
+
+                // 滚动到表单顶部
+                document.getElementById('addTemplateForm').scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+
+            // 取消编辑模板
+            cancelEditTemplate() {
+                // 重置编辑状态
+                this.editingTemplateId = null;
+
+                // 重置表单
+                document.getElementById('addTemplateForm').reset();
+
+                // 恢复UI
+                const formTitle = document.getElementById('templateFormTitle');
+                formTitle.innerHTML = `
+                    <svg class="w-5 h-5 mr-2 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                    </svg>
+                    添加新模板
+                `;
+
+                document.getElementById('templateSubmitBtn').textContent = '添加模板';
+                document.getElementById('cancelEditTemplate').classList.add('hidden');
+            }
+
+            // 自动分配元器件位置编号（主表单）
+            autoAssignComponentLocation() {
+                const category = document.getElementById('componentCategory').value;
+                if (!category) {
+                    this.showNotification('请先选择分类', 'error');
+                    return;
+                }
+
+                // 定义默认分类前缀映射
+                const defaultPrefixes = {
+                    resistor: 'R',
+                    capacitor: 'C',
+                    inductor: 'L',
+                    transistor: 'Q',
+                    mosfet: 'Q',
+                    diode: 'D',
+                    led: 'D',
+                    ic: 'U',
+                    switch: 'SW',
+                    crystal: 'Y',
+                    other: 'M'
+                };
+
+                // 从 localStorage 读取用户自定义的前缀配置
+                let prefix = defaultPrefixes[category] || 'M';
+                try {
+                    const savedPrefixes = localStorage.getItem('locationPrefixConfig');
+                    if (savedPrefixes) {
+                        const prefixConfig = JSON.parse(savedPrefixes);
+                        if (prefixConfig[category]) {
+                            prefix = prefixConfig[category];
+                        }
+                    }
+                } catch (error) {
+                    console.error('[模板] 读取位置编号前缀配置失败:', error);
+                }
+
+                // 获取已使用的位置编号
+                const usedNumbers = new Set();
+
+                // 从 localStorage 获取元器件数据
+                try {
+                    const componentsData = localStorage.getItem('electronicComponents');
+                    if (componentsData) {
+                        const components = JSON.parse(componentsData);
+                        console.log('[自动分配] 所有元器件数据:', components);
+                        console.log('[自动分配] 分类前缀:', prefix);
+
+                        components.forEach(comp => {
+                            console.log('[自动分配] 检查元器件:', comp.name, '位置:', comp.location);
+
+                            // 支持多种位置编号格式：
+                            // 格式1: C-001, R-002 (标准格式)
+                            // 格式2: C001, R002 (无横杠格式)
+                            // 格式3: C 001, R 002 (空格格式)
+
+                            let num = null;
+
+                            if (comp.location) {
+                                // 尝试格式1: 前缀-数字
+                                if (comp.location.startsWith(prefix + '-')) {
+                                    const numPart = comp.location.substring(prefix.length + 1);
+                                    num = parseInt(numPart, 10);
+                                    console.log('[自动分配] 格式1匹配:', numPart, '->', num);
+                                }
+                                // 尝试格式2: 前缀数字 (无横杠)
+                                else if (comp.location.startsWith(prefix)) {
+                                    const numPart = comp.location.substring(prefix.length);
+                                    num = parseInt(numPart, 10);
+                                    console.log('[自动分配] 格式2匹配:', numPart, '->', num);
+                                }
+                            }
+
+                            if (!isNaN(num) && num > 0) {
+                                usedNumbers.add(num);
+                                console.log('[自动分配] 添加已使用编号:', num);
+                            }
+                        });
+
+                        console.log('[自动分配] 所有已使用的编号:', Array.from(usedNumbers).sort((a, b) => a - b));
+                    }
+                } catch (error) {
+                    console.error('[自动分配] 读取元器件数据失败:', error);
+                }
+
+                // 找到最小的可用编号（从1开始，跳过所有已使用的编号）
+                // 例如：如果已使用 1-36，则分配 37
+                // 如果已使用 1-5 和 10-15，则分配 6（最小的可用编号）
+                let minAvailable = 1;
+                while (usedNumbers.has(minAvailable)) {
+                    minAvailable++;
+                }
+
+                // 格式化为三位数（如 001, 002, 003）
+                const formattedNumber = String(minAvailable).padStart(3, '0');
+                const locationCode = `${prefix}-${formattedNumber}`;
+
+                // 填充到输入框
+                document.getElementById('componentLocation').value = locationCode;
+                this.updatePreview(); // 实时更新预览
+                
+                // 显示详细信息，包括已使用的编号范围
+                const usedArray = Array.from(usedNumbers).sort((a, b) => a - b);
+                const usedRange = usedArray.length > 0 
+                    ? `${usedArray[0]} ~ ${usedArray[usedArray.length - 1]}` 
+                    : '无';
+                this.showNotification(`已分配位置编号：${locationCode}（已使用编号：${usedRange}）`, 'success');
+            }
+
+            // 删除模板
+            deleteTemplate(templateId) {
+                if (confirm('确定要删除这个模板吗？')) {
+                    delete this.templates[templateId];
+                    this.saveCustomTemplates();
+                    this.renderTemplatesList();
+                    this.renderTemplateCards();
+                    this.showNotification('模板已删除', 'success');
+                }
+            }
+
+            // 渲染模板卡片（更新页面上的快速模板区域）
+            renderTemplateCards() {
+                const noTemplatesHint = document.getElementById('noTemplatesHint');
+                const customSection = document.getElementById('customTemplatesSection');
+                const customList = document.getElementById('customTemplatesList');
+                if (!customSection || !customList || !noTemplatesHint) return;
+
+                // 获取所有自定义模板
+                const customTemplates = [];
+                Object.keys(this.templates).forEach(key => {
+                    if (key.startsWith('custom-')) {
+                        customTemplates.push({ id: key, ...this.templates[key] });
+                    }
+                });
+
+                if (customTemplates.length > 0) {
+                    // 有自定义模板，隐藏提示信息，显示自定义模板列表
+                    noTemplatesHint.classList.add('hidden');
+                    customSection.classList.remove('hidden');
+                    customList.innerHTML = '';
+
+                    // 按分类分组
+                    const categoryGroups = {};
+                    const categoryNames = {
+                        resistor: '电阻',
+                        capacitor: '电容',
+                        inductor: '电感',
+                        transistor: '三极管',
+                        mosfet: 'MOS管',
+                        diode: '二极管',
+                        led: 'LED',
+                        ic: '集成电路',
+                        switch: '开关',
+                        crystal: '晶振',
+                        other: '其他'
+                    };
+                    // 定义分类颜色
+                    const categoryColors = {
+                        resistor: { border: 'border-blue-500/40', bg: 'bg-blue-500/10', text: 'text-blue-400' },
+                        capacitor: { border: 'border-yellow-500/40', bg: 'bg-yellow-500/10', text: 'text-yellow-400' },
+                        inductor: { border: 'border-green-500/40', bg: 'bg-green-500/10', text: 'text-green-400' },
+                        transistor: { border: 'border-purple-500/40', bg: 'bg-purple-500/10', text: 'text-purple-400' },
+                        mosfet: { border: 'border-red-500/40', bg: 'bg-red-500/10', text: 'text-red-400' },
+                        diode: { border: 'border-orange-500/40', bg: 'bg-orange-500/10', text: 'text-orange-400' },
+                        led: { border: 'border-pink-500/40', bg: 'bg-pink-500/10', text: 'text-pink-400' },
+                        ic: { border: 'border-cyan-500/40', bg: 'bg-cyan-500/10', text: 'text-cyan-400' },
+                        switch: { border: 'border-indigo-500/40', bg: 'bg-indigo-500/10', text: 'text-indigo-400' },
+                        crystal: { border: 'border-teal-500/40', bg: 'bg-teal-500/10', text: 'text-teal-400' },
+                        other: { border: 'border-gray-500/40', bg: 'bg-gray-500/10', text: 'text-gray-400' }
+                    };
+
+                    customTemplates.forEach(template => {
+                        const category = template.category || 'other';
+                        if (!categoryGroups[category]) {
+                            categoryGroups[category] = [];
+                        }
+                        categoryGroups[category].push(template);
+                    });
+
+                    // 渲染每个分类
+                    Object.keys(categoryGroups).sort().forEach(category => {
+                        // 创建分类标题
+                        const groupDiv = document.createElement('div');
+                        groupDiv.className = 'mb-5';
+
+                        const categoryTitle = document.createElement('div');
+                        categoryTitle.className = `flex items-center mb-3 px-1`;
+                        const colorClass = categoryColors[category]?.text || categoryColors.other.text;
+                        categoryTitle.innerHTML = `
+                            <div class="w-1 h-4 rounded-full ${colorClass.replace('text', 'bg')} mr-2"></div>
+                            <h3 class="text-sm font-semibold ${colorClass}">${categoryNames[category] || category}</h3>
+                            <span class="text-xs text-gray-500 ml-2">(${categoryGroups[category].length})</span>
+                        `;
+                        groupDiv.appendChild(categoryTitle);
+
+                        // 创建该分类的模板网格
+                        const templatesGrid = document.createElement('div');
+                        templatesGrid.className = 'grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3';
+
+                        // 渲染该分类的模板
+                        categoryGroups[category].forEach(template => {
+                            const card = document.createElement('div');
+                            const colors = categoryColors[template.category] || categoryColors.other;
+                            card.className = `template-card p-4 border ${colors.border} rounded-lg relative group`;
+                            card.dataset.template = template.id;
+
+                            // 生成卡片显示内容 - 优先使用自定义显示文字
+                            let displayTitle = '';
+                            let displaySubtitle = '';
+                            let displayMeta = '';
+                            
+                            // 如果有自定义显示文字，直接使用
+                            if (template.displayText && template.displayText.trim()) {
+                                displayTitle = template.displayText.trim();
+                                // 如果有名称、型号、值等信息，可以显示为副标题
+                                if (template.name || template.model || template.value) {
+                                    const metaParts = [];
+                                    if (template.model) metaParts.push(template.model);
+                                    if (template.value && template.value !== template.displayText) metaParts.push(template.value);
+                                    displaySubtitle = metaParts.join(' | ');
+                                }
+                            } else {
+                                // 没有自定义显示文字，使用自动生成逻辑
+                                displayTitle = template.name || template.model || template.value || '未命名模板';
+                                
+                                if (!template.name && template.model) {
+                                    displayTitle = template.model;
+                                    displaySubtitle = template.value || '';
+                                } else if (template.name && template.model && template.value) {
+                                    displaySubtitle = template.value;
+                                    displayMeta = template.model + (template.brand ? ' | ' + template.brand : '');
+                                } else if (template.value) {
+                                    displaySubtitle = template.value;
+                                    displayMeta = template.model || '';
+                                } else if (template.model) {
+                                    displaySubtitle = template.model;
+                                    displayMeta = template.brand || '';
+                                }
+                            }
+
+                            // 库存和预警信息
+                            const stockInfo = template.stock !== undefined && template.stock !== null 
+                                ? `<div class="flex items-center text-xs mt-2 ${template.stock < (template.threshold || 0) ? 'text-red-400' : 'text-gray-400'}">
+                                    <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path>
+                                    </svg>
+                                    ${template.stock}
+                                </div>` 
+                                : '';
+
+                            card.innerHTML = `
+                                <div class="flex flex-col h-full">
+                                    <div class="flex-1">
+                                        <div class="text-sm font-semibold text-white mb-1 truncate">${displayTitle}</div>
+                                        ${displaySubtitle ? `<div class="text-xs text-gray-400 truncate">${displaySubtitle}</div>` : ''}
+                                        ${displayMeta ? `<div class="text-xs text-gray-500 truncate mt-1">${displayMeta}</div>` : ''}
+                                    </div>
+                                    ${stockInfo}
+                                </div>
+                                <div class="absolute inset-0 border-2 border-transparent rounded-lg group-hover:border-white/5 transition-colors pointer-events-none"></div>
+                            `;
+                            card.addEventListener('click', () => this.applyTemplate(template.id));
+                            templatesGrid.appendChild(card);
+                        });
+
+                        groupDiv.appendChild(templatesGrid);
+                        customList.appendChild(groupDiv);
+                    });
+                } else {
+                    // 没有自定义模板，显示提示信息，隐藏自定义模板列表
+                    noTemplatesHint.classList.remove('hidden');
+                    customSection.classList.add('hidden');
+                }
+            }
+            
+            applyTemplate(templateId) {
+                const template = this.templates[templateId];
+                if (template) {
+                    // 先设置类别，触发子类别和参数字段更新
+                    const categoryEl = document.getElementById('componentCategory');
+                    if (categoryEl && template.category) {
+                        categoryEl.value = template.category;
+                        categoryEl.dispatchEvent(new Event('change'));
+                    }
+                    
+                    // 设置子类别，触发参数字段更新
+                    setTimeout(() => {
+                        const subCategoryEl = document.getElementById('componentSubCategory');
+                        if (subCategoryEl && template.subCategory) {
+                            subCategoryEl.value = template.subCategory;
+                            subCategoryEl.dispatchEvent(new Event('change'));
+                        }
+                        
+                        // 填充其他字段
+                        Object.keys(template).forEach(key => {
+                            if (key === 'category' || key === 'subCategory' || key === 'value') return;
+                            const element = document.getElementById('component' + key.charAt(0).toUpperCase() + key.slice(1));
+                            if (element) {
+                                element.value = template[key];
+                            }
+                        });
+                        
+                        // 填充分化参数值
+                        setTimeout(() => {
+                            // 显式填充品牌和产品编码
+                            const brandEl = document.getElementById('componentBrand');
+                            if (brandEl && template.brand) brandEl.value = template.brand;
+                            const productCodeEl = document.getElementById('componentProductCode');
+                            if (productCodeEl && template.productCode) productCodeEl.value = template.productCode;
+
+                            if (template.value) {
+                                const category = template.category || '';
+                                const subCategory = template.subCategory || '';
+                                let defs = null;
+                                if (subCategory && addComponentManager.subCategoryParamDefinitions[category] && addComponentManager.subCategoryParamDefinitions[category][subCategory]) {
+                                    defs = addComponentManager.subCategoryParamDefinitions[category][subCategory];
+                                }
+                                if (!defs) {
+                                    defs = addComponentManager.paramDefinitions[category];
+                                }
+                                
+                                if (defs) {
+                                    try {
+                                        const params = JSON.parse(template.value);
+                                        defs.forEach(def => {
+                                            if (params[def.id]) {
+                                                const input = document.getElementById('param-' + def.id);
+                                                if (input) input.value = params[def.id].value || '';
+                                                if (def.units && def.units.length > 0) {
+                                                    const unitSelect = document.getElementById('param-unit-' + def.id);
+                                                    if (unitSelect) unitSelect.value = params[def.id].unit || def.defaultUnit || '';
+                                                }
+                                            }
+                                        });
+                                    } catch (e) {
+                                        // 旧格式：纯文本值
+                                        const valueEl = document.getElementById('componentValue');
+                                        if (valueEl) valueEl.value = template.value || '';
+                                    }
+                                } else {
+                                    const valueEl = document.getElementById('componentValue');
+                                    if (valueEl) valueEl.value = template.value || '';
+                                }
+                            }
+                            
+                            this.updatePreview();
+                            
+                            // 模板应用动画
+                            anime({
+                                targets: '.form-card',
+                                scale: [1, 1.02, 1],
+                                duration: 300,
+                                easing: 'easeOutQuart'
+                            });
+                        }, 50);
+                    }, 50);
+                }
+            }
+            
+            getFormData() {
+                const category = document.getElementById('componentCategory').value;
+                const imageUrl = document.getElementById('componentImage').value.trim();
+                const datasheetUrl = document.getElementById('componentDatasheet').value.trim();
+
+                return {
+                    name: document.getElementById('componentName').value,
+                    model: document.getElementById('componentModel').value,
+                    brand: document.getElementById('componentBrand').value,
+                    productCode: document.getElementById('componentProductCode').value,
+                    category: category,
+                    subCategory: document.getElementById('componentSubCategory').value || '',
+                    value: addComponentManager.collectParams(),
+                    params: addComponentManager.collectParams(),
+                    stock: parseInt(document.getElementById('componentStock').value) || 0,
+                    price: parseFloat(document.getElementById('componentPrice').value) || 0,
+                    threshold: parseInt(document.getElementById('componentThreshold').value) || 0,
+                    location: document.getElementById('componentLocation').value,
+                    notes: document.getElementById('componentNotes').value,
+                    datasheet: datasheetUrl,
+                    image: imageUrl || this.getDefaultImage(category)
+                };
+            }
+            
+            validateForm(data) {
+                const required = ['name', 'model', 'category'];
+                const missing = required.filter(field => !data[field]);
+                
+                if (missing.length > 0) {
+                    this.showNotification(`请填写必填字段: ${missing.join(', ')}`, 'error');
+                    return false;
+                }
+                
+                if (data.stock < 0 || data.threshold < 0) {
+                    this.showNotification('库存数量和预警阈值不能为负数', 'error');
+                    return false;
+                }
+                
+                return true;
+            }
+
+            // 更新子类别下拉选项
+            updateSubCategoryOptions() {
+                const category = document.getElementById('componentCategory').value;
+                const subSelect = document.getElementById('componentSubCategory');
+                if (!subSelect) return;
+
+                const saved = localStorage.getItem('subCategorySettings');
+                let settings = null;
+                if (saved) {
+                    try { settings = JSON.parse(saved); } catch (e) {}
+                }
+
+                const defaults = {
+                    resistor: ['贴片电阻', '金属膜电阻', '碳膜电阻', '线绕电阻', '电位器', 'NTC热敏电阻', '可变电阻'],
+                    capacitor: ['陶瓷电容', '铝电解电容', '钽电容', '薄膜电容', 'MLCC贴片电容', '可变电容', '超级电容'],
+                    inductor: ['功率电感', '贴片电感', '滤波电感', '射频电感', '变压器', '扼流圈', '磁环电感'],
+                    transistor: ['NPN三极管', 'PNP三极管', '达林顿管', '光敏三极管', '射频三极管'],
+                    mosfet: ['N沟道MOS', 'P沟道MOS', '双MOS', 'LDO MOS'],
+                    diode: ['整流二极管', '肖特基二极管', '稳压二极管', 'TVS二极管', '发光二极管', '光电二极管', '整流桥'],
+                    led: ['贴片LED', '直插LED', 'RGB LED', '大功率LED', '红外LED', '紫外LED', '数码管'],
+                    ic: ['单片机', '线性稳压器(LDO)', 'DC-DC电源芯片', 'LED驱动', '电池管理', '运算放大器', '逻辑门', '存储器', '接口IC'],
+                    switch: ['轻触开关', '拨动开关', '旋转开关', 'DIP开关', '微动开关', '船形开关'],
+                    crystal: ['HC49晶振', '贴片晶振', '有源晶振', '温补晶振'],
+                    other: ['连接器', '保险丝', '继电器', '传感器', '线材', 'PCB板']
+                };
+
+                const items = (settings && settings[category]) ? settings[category] : (defaults[category] || []);
+
+                subSelect.innerHTML = '<option value="">' + (category ? '选择子类别' : '请先选择类别') + '</option>';
+                items.forEach(name => {
+                    const option = document.createElement('option');
+                    option.value = name;
+                    option.textContent = name;
+                    subSelect.appendChild(option);
+                });
+            }
+
+            // 参数分化定义
+            paramDefinitions = {
+                resistor: [
+                    { id: 'p1', label: '阻值', units: ['MΩ', 'kΩ', 'Ω'], defaultUnit: 'Ω' },
+                    { id: 'p2', label: '额定功率', units: ['W'], defaultUnit: 'W' }
+                ],
+                capacitor: [
+                    { id: 'p1', label: '电容值', units: ['F', 'mF', 'μF', 'nF', 'pF'], defaultUnit: 'μF' },
+                    { id: 'p2', label: '耐压值', units: ['V'], defaultUnit: 'V' }
+                ],
+                inductor: [
+                    { id: 'p1', label: '电感量', units: ['H', 'mH', 'μH'], defaultUnit: 'μH' },
+                    { id: 'p2', label: '额定电流', units: ['A', 'mA'], defaultUnit: 'A' }
+                ],
+                mosfet: [
+                    { id: 'p1', label: '漏源击穿电压', units: ['V', 'mV'], defaultUnit: 'V' },
+                    { id: 'p2', label: '最大漏极电流', units: ['A', 'mA'], defaultUnit: 'A' }
+                ],
+                diode: [
+                    { id: 'p1', label: '最大反向重复峰值电压', units: ['V', 'mV'], defaultUnit: 'V' },
+                    { id: 'p2', label: '平均整流电流', units: ['A', 'mA'], defaultUnit: 'A' },
+                    { id: 'p3', label: '正向压降', units: ['V', 'mV'], defaultUnit: 'V' },
+                    { id: 'p4', label: '反向恢复时间', units: ['μs', 'ns'], defaultUnit: 'ns' }
+                ],
+                transistor: [
+                    { id: 'p1', label: '集电极-发射极击穿电压', units: ['V', 'mV'], defaultUnit: 'V' },
+                    { id: 'p2', label: '集电极最大允许电流', units: ['A', 'mA'], defaultUnit: 'A' }
+                ],
+                led: [
+                    { id: 'p1', label: '正向压降(Vf)', units: ['V', 'mV'], defaultUnit: 'V' },
+                    { id: 'p2', label: '正向电流', units: ['mA', 'A'], defaultUnit: 'mA' },
+                    { id: 'p3', label: '功率', units: ['W', 'mW'], defaultUnit: 'W' },
+                    { id: 'p4', label: '发光颜色', units: [] },
+                    { id: 'p5', label: '色温', units: ['K'], defaultUnit: 'K' }
+                ],
+                crystal: [
+                    { id: 'p1', label: '标称频率', units: ['MHz', 'kHz', 'Hz'], defaultUnit: 'MHz' },
+                    { id: 'p2', label: '负载电容', units: ['pF', 'nF', 'μF'], defaultUnit: 'pF' }
+                ]
+            };
+
+            // 子类别关联的分化参数定义（仅当选中特定子类别时生效）
+            subCategoryParamDefinitions = {
+                ic: {
+                    '单片机': [
+                        { id: "p1", label: "内核框架", units: [], filterable: false },
+                        { id: 'p2', label: 'Flash', units: ['B', 'KB', 'MB'], defaultUnit: 'KB' },
+                        { id: 'p3', label: 'SRAM', units: ['B', 'KB', 'MB'], defaultUnit: 'KB' },
+                        { id: 'p4', label: '最大主频', units: ['MHz', 'GHz'], defaultUnit: 'MHz' },
+                        { id: "p5", label: "通用I/O数目", units: [], numeric: true }
+                    ]
+                }
+            };
+
+            // 渲染参数输入字段
+            updateParamFields() {
+                const container = document.getElementById('paramFields');
+                if (!container) return;
+
+                const category = document.getElementById('componentCategory').value;
+                const subCategory = document.getElementById('componentSubCategory').value;
+
+                // 未选择类别时，显示提示而非可编辑输入框
+                if (!category) {
+                    container.innerHTML = '<div class="opacity-50">' +
+                        '<label class="block text-sm font-medium text-gray-400 mb-2">参数值</label>' +
+                        '<p class="text-gray-500 text-sm py-2">请先选择类别</p>' +
+                        '</div>';
+                    return;
+                }
+
+                // 子类别关联定义优先
+                let defs = null;
+                if (subCategory && this.subCategoryParamDefinitions[category] && this.subCategoryParamDefinitions[category][subCategory]) {
+                    defs = this.subCategoryParamDefinitions[category][subCategory];
+                }
+                if (!defs) {
+                    defs = this.paramDefinitions[category];
+                }
+                // 自定义分化参数 fallback
+                if (!defs) {
+                    const customParams = JSON.parse(localStorage.getItem('customParamDefinitions') || '{}');
+                    defs = customParams[category] || null;
+                }
+                // 过滤掉可能的空元素（防止稀疏数组导致崩溃）
+                if (defs) {
+                    defs = defs.filter(d => d && d.id);
+                }
+
+                if (!defs || defs.length === 0) {
+                    container.innerHTML = '<div><label class="block text-sm font-medium text-gray-300 mb-2">参数值</label>' +
+                        '<input type="text" id="componentValue" class="form-input w-full px-4 py-3 text-white placeholder-gray-500" placeholder="如: 1kΩ, 100μF, NPN"></div>';
+                    // 给动态生成的通用参数输入框绑定事件
+                    const cv = document.getElementById('componentValue');
+                    if (cv) {
+                        cv.addEventListener('input', () => this.updatePreview());
+                        cv.addEventListener('change', () => this.updatePreview());
+                    }
+                    return;
+                }
+
+                let html = '<div class="space-y-3">';
+                defs.forEach(def => {
+                    html += '<div>' +
+                        '<label class="block text-sm font-medium text-gray-300 mb-2">' + def.label + '</label>' +
+                        '<div class="flex space-x-2">' +
+                        '<input type="text" id="param-' + def.id + '" value="" class="flex-1 px-4 py-3 text-white bg-gray-800 border border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" placeholder="输入' + def.label + '">';
+                    if (def.units && def.units.length > 0) {
+                        html += '<select id="param-unit-' + def.id + '" class="w-24 px-3 py-3 text-white bg-gray-800 border border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">';
+                        def.units.forEach(u => {
+                            html += '<option value="' + u + '"' + (u === def.defaultUnit ? ' selected' : '') + '>' + u + '</option>';
+                        });
+                        html += '</select>';
+                    }
+                    html += '</div></div>';
+                });
+                html += '</div>';
+                container.innerHTML = html;
+
+                // 给动态生成的参数字段绑定 input 事件，实时更新预览
+                container.querySelectorAll('input[id^="param-"], select[id^="param-unit-"]').forEach(el => {
+                    el.addEventListener('input', () => this.updatePreview());
+                    el.addEventListener('change', () => this.updatePreview());
+                });
+            }
+
+            // 收集参数值
+            collectParams() {
+                const category = document.getElementById('componentCategory').value;
+                const subCategory = document.getElementById('componentSubCategory').value;
+
+                // 子类别关联定义优先
+                let defs = null;
+                if (subCategory && this.subCategoryParamDefinitions[category] && this.subCategoryParamDefinitions[category][subCategory]) {
+                    defs = this.subCategoryParamDefinitions[category][subCategory];
+                }
+                if (!defs) {
+                    defs = this.paramDefinitions[category];
+                }
+                // 自定义分化参数 fallback
+                if (!defs) {
+                    const customParams = JSON.parse(localStorage.getItem('customParamDefinitions') || '{}');
+                    defs = customParams[category] || null;
+                }
+                // 过滤掉可能的空元素（防止稀疏数组导致崩溃）
+                if (defs) {
+                    defs = defs.filter(d => d && d.id);
+                }
+                if (!defs || defs.length === 0) {
+                    const val = document.getElementById('componentValue');
+                    return val ? val.value : '';
+                }
+
+                const params = defs.map(def => {
+                    const value = document.getElementById('param-' + def.id)?.value || '';
+                    const unitEl = document.getElementById('param-unit-' + def.id);
+                    const unit = unitEl ? (unitEl.value || def.defaultUnit) : '';
+                    return { id: def.id, label: def.label, value, unit };
+                });
+
+                return JSON.stringify(params);
+            }
+
+            // ========== 数据手册本地文件上传 ==========
+
+            handleDatasheetFileUpload(event) {
+                const file = event.target.files[0];
+                if (!file) return;
+
+                if (file.size > 50 * 1024 * 1024) {
+                    alert('文件大小超过限制（最大 50MB）');
+                    event.target.value = '';
+                    return;
+                }
+
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    this.pendingDatasheetFileData = {
+                        file: file,
+                        data: e.target.result
+                    };
+                    const fileInfo = document.getElementById('addDatasheetFileInfo');
+                    const fileName = document.getElementById('addDatasheetFileName');
+                    if (fileInfo && fileName) {
+                        fileName.textContent = file.name + ' (' + this.formatFileSize(file.size) + ')';
+                        fileInfo.classList.remove('hidden');
+                    }
+                };
+                reader.onerror = () => {
+                    alert('文件读取失败，请重试');
+                    event.target.value = '';
+                };
+                reader.readAsArrayBuffer(file);
+            }
+
+            removeDatasheetFile() {
+                this.pendingDatasheetFileData = null;
+                const fileInfo = document.getElementById('addDatasheetFileInfo');
+                if (fileInfo) fileInfo.classList.add('hidden');
+                const fileInput = document.getElementById('addComponentDatasheetFile');
+                if (fileInput) fileInput.value = '';
+            }
+
+            formatFileSize(bytes) {
+                if (bytes < 1024) return bytes + ' B';
+                if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+                return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+            }
+
+            addComponent(data) {
+                var components = JSON.parse(localStorage.getItem('electronicComponents') || '[]');
+                var newComponent = {
+                    id: 'comp_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
+                    ...data,
+                    createdAt: new Date().toISOString()
+                };
+
+                components.push(newComponent);
+
+                // 按位置编号排序
+                components.sort((a, b) => this.compareLocationNumbers(a.location, b.location));
+
+                localStorage.setItem('electronicComponents', JSON.stringify(components));
+
+                // 保存数据手册文件到 IndexedDB
+                if (this.pendingDatasheetFileData) {
+                    const dbName = 'ComponentDatasheetsDB';
+                    const storeName = 'datasheets';
+                    const request = indexedDB.open(dbName, 1);
+                    request.onsuccess = () => {
+                        const db = request.result;
+                        const tx = db.transaction(storeName, 'readwrite');
+                        tx.objectStore(storeName).put({
+                            name: this.pendingDatasheetFileData.file.name,
+                            type: this.pendingDatasheetFileData.file.type || 'application/octet-stream',
+                            size: this.pendingDatasheetFileData.file.size,
+                            data: this.pendingDatasheetFileData.data,
+                            savedAt: new Date().toISOString()
+                        }, newComponent.id);
+                        tx.oncomplete = () => {
+                            this.pendingDatasheetFileData = null;
+                            db.close();
+                        };
+                    };
+                }
+
+                // 如果初始库存大于0，记录入库历史
+                if (data.stock > 0) {
+                    this.saveHistoryRecord('inbound', data.name, data.stock, 0, data.stock);
+                }
+
+                // 同步到服务端文件（同步 XHR，跳转前一定送达）
+                this.syncToServer(components);
+
+                return newComponent;
+            }
+
+            // 同步数据到服务端文件
+            syncToServer(components, sync) {
+                // 使用同步 XHR 确保跳转前数据一定到达服务端
+                try {
+                    var xhr = new XMLHttpRequest();
+                    xhr.open('POST', '/api/data/components', false);
+                    xhr.setRequestHeader('Content-Type', 'application/json');
+                    xhr.send(JSON.stringify({ components: components }));
+                    if (xhr.status !== 200) {
+                        console.warn('[XHR] 同步到服务端失败:', xhr.status);
+                    } else if (sync) {
+                        // 同步设置到服务端
+                        var settingsXhr = new XMLHttpRequest();
+                        settingsXhr.open('POST', '/api/settings', false);
+                        settingsXhr.setRequestHeader('Content-Type', 'application/json');
+                        var allSettings = {};
+                        ['systemSettings','subCategorySettings','locationPrefixConfig',
+                         'categoryOrder','customCategories','customParamDefinitions'].forEach(function(k) {
+                            var v = localStorage.getItem(k);
+                            if (v) { try { allSettings[k] = JSON.parse(v); } catch(e) {} }
+                        });
+                        settingsXhr.send(JSON.stringify(allSettings));
+                    }
+                } catch (e) {
+                    console.warn('[Server] 服务端未运行，同步已跳过');
+                }
+            }
+
+            // 比较位置编号（用于排序）
+            compareLocationNumbers(locA, locB) {
+                // 如果两个都没有位置编号，保持原顺序
+                if (!locA && !locB) return 0;
+                // 如果只有a没有位置编号，a排在后面
+                if (!locA) return 1;
+                // 如果只有b没有位置编号，b排在后面
+                if (!locB) return -1;
+
+                // 解析位置编号格式：前缀-数字（如 A-001, B-123）
+                const parseLocation = (loc) => {
+                    const match = loc.match(/^([A-Za-z]+)-(\d+)$/);
+                    if (match) {
+                        return {
+                            prefix: match[1].toUpperCase(),
+                            number: parseInt(match[2], 10)
+                        };
+                    }
+                    // 如果格式不匹配，返回原始字符串用于排序
+                    return { prefix: loc.toUpperCase(), number: null };
+                };
+
+                const parsedA = parseLocation(locA);
+                const parsedB = parseLocation(locB);
+
+                // 先按前缀排序
+                if (parsedA.prefix !== parsedB.prefix) {
+                    return parsedA.prefix.localeCompare(parsedB.prefix);
+                }
+
+                // 如果前缀相同且都有数字，按数字排序
+                if (parsedA.number !== null && parsedB.number !== null) {
+                    return parsedA.number - parsedB.number;
+                }
+
+                // 如果只有一个有数字，有数字的排在前面
+                if (parsedA.number !== null) return -1;
+                if (parsedB.number !== null) return 1;
+
+                // 都没有数字，保持原顺序
+                return 0;
+            }
+
+            // 保存出入库历史记录
+            saveHistoryRecord(type, componentName, quantity, beforeStock, afterStock) {
+                const key = type === 'checkout' ? 'checkoutHistory' : 'inboundHistory';
+                const history = JSON.parse(localStorage.getItem(key) || '[]');
+
+                const record = {
+                    id: Date.now().toString(),
+                    componentName,
+                    quantity,
+                    beforeStock,
+                    afterStock,
+                    timestamp: new Date().toISOString()
+                };
+
+                history.push(record);
+
+                // 只保留最近100条
+                if (history.length > 100) {
+                    history.splice(0, history.length - 100);
+                }
+
+                localStorage.setItem(key, JSON.stringify(history));
+            }
+            
+            getDefaultImage(category) {
+                const defaultImages = {
+                    resistor: 'resources/images/resistors/resistor-collection.png',
+                    capacitor: 'resources/images/capacitors/capacitor-collection.png',
+                    inductor: 'https://kimi-web-img.moonshot.cn/img/upload.wikimedia.org/a2f2e16f8969ba3d2db5fb18bd86a57a05f18f6e.jpg',
+                    transistor: 'https://kimi-web-img.moonshot.cn/img/www.buerklin.com/9318c346e9c8d3d4e9bc8df611e2bab6cae269f8.jpg',
+                    diode: 'https://kimi-web-img.moonshot.cn/img/www.build-electronic-circuits.com/659b68c0c152c997f401ca30d570b2c98614aa04.jpg',
+                    mosfet: 'https://kimi-web-img.moonshot.cn/img/www.build-electronic-circuits.com/659b68c0c152c997f401ca30d570b2c98614aa04.jpg',
+                    led: 'https://kimi-web-img.moonshot.cn/img/www.buerklin.com/9318c346e9c8d3d4e9bc8df611e2bab6cae269f8.jpg',
+                    crystal: 'resources/images/hero-circuit-board.png',
+                    ic: 'resources/images/ics/ic-collection.png'
+                };
+                return defaultImages[category] || 'resources/images/hero-circuit-board.png';
+            }
+            
+            saveAndContinue() {
+                try {
+                    const data = this.getFormData();
+                    if (!this.validateForm(data)) return;
+
+                    this.addComponent(data);
+                    this.showNotification('元器件添加成功！可以继续添加下一个。', 'success');
+                    this.resetForm();
+                } catch (e) {
+                    console.error('保存元器件失败:', e);
+                    this.showNotification('保存失败: ' + e.message, 'error');
+                }
+            }
+
+            saveAndReturn() {
+                try {
+                    const data = this.getFormData();
+                    if (!this.validateForm(data)) return;
+
+                    // addComponent 内部用同步 XHR 写文件，完成后才返回
+                    this.addComponent(data);
+                    this.showNotification('元器件添加成功！', 'success');
+                    window.location.href = 'index.html';
+                } catch (e) {
+                    console.error('保存元器件失败:', e);
+                    this.showNotification('保存失败: ' + e.message, 'error');
+                }
+            }
+            
+            resetForm() {
+                const setVal = (id, val) => {
+                    const el = document.getElementById(id);
+                    if (el) el.value = val || '';
+                };
+                setVal('componentName', '');
+                setVal('componentModel', '');
+                setVal('componentBrand', '');
+                setVal('componentProductCode', '');
+                setVal('componentCategory', '');
+                setVal('componentValue', '');
+                setVal('componentSubCategory', '');
+                setVal('componentStock', '');
+                setVal('componentThreshold', '');
+                setVal('componentPrice', '');
+                setVal('componentLocation', '');
+                setVal('componentNotes', '');
+                setVal('componentDatasheet', '');
+                setVal('componentImage', '');
+
+                // 重新渲染参数字段（恢复为默认状态）
+                this.updateParamFields();
+                this.updatePreview();
+            }
+            
+            showNotification(message, type = 'info') {
+                const notification = document.createElement('div');
+                notification.className = `fixed top-4 right-4 z-50 px-6 py-3 rounded-lg shadow-lg transform translate-x-full transition-transform duration-300 ${
+                    type === 'success' ? 'bg-green-600' : 
+                    type === 'error' ? 'bg-red-600' : 'bg-blue-600'
+                } text-white`;
+                notification.textContent = message;
+                
+                document.body.appendChild(notification);
+                
+                setTimeout(() => {
+                    notification.classList.remove('translate-x-full');
+                }, 100);
+                
+                setTimeout(() => {
+                    notification.classList.add('translate-x-full');
+                    setTimeout(() => {
+                        document.body.removeChild(notification);
+                    }, 300);
+                }, 3000);
+            }
+        }
+        
+        // 初始化
+        document.addEventListener('DOMContentLoaded', () => {
+            window.addComponentManager = new AddComponentManager();
+        });
+    </script>
+
+    <!-- 模板管理模态框 -->
+    <div id="templateManagerModal" class="fixed inset-0 z-50 hidden">
+        <div class="flex items-center justify-center min-h-screen p-4">
+            <div class="fixed inset-0 bg-black/70 backdrop-blur-sm"></div>
+            <div class="relative z-10 bg-gray-800 rounded-xl w-full max-w-4xl max-h-[90vh] overflow-hidden">
+                <!-- 头部 -->
+                <div class="p-6 border-b border-gray-700">
+                    <div class="flex items-center justify-between">
+                        <h2 class="text-xl font-bold text-white">模板管理</h2>
+                        <button id="closeTemplateManager" class="p-2 hover:bg-gray-700 rounded-lg transition-colors">
+                            <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 内容区域 -->
+                <div class="p-6 overflow-y-auto max-h-[calc(90vh-200px)]">
+                    <!-- 添加/编辑模板 -->
+                    <div class="mb-8">
+                        <div class="flex items-center justify-between mb-4">
+                            <h3 id="templateFormTitle" class="text-lg font-semibold text-white flex items-center">
+                                <svg class="w-5 h-5 mr-2 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                                </svg>
+                                添加新模板
+                            </h3>
+                            <button id="cancelEditTemplate" type="button" class="hidden px-4 py-1.5 bg-gray-600 hover:bg-gray-700 text-white text-sm rounded-lg transition-colors">
+                                取消编辑
+                            </button>
+                        </div>
+                        <form id="addTemplateForm" class="bg-gray-700/50 rounded-lg p-6">
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-300 mb-2">模板名称</label>
+                                    <input type="text" id="templateName" class="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:border-green-400 focus:outline-none" placeholder="如：1kΩ电阻">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-300 mb-2">分类 *</label>
+                                    <select id="templateCategory" required class="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:border-green-400 focus:outline-none">
+                                        <option value="">选择分类</option>
+                                        <option value="resistor">电阻</option>
+                                        <option value="capacitor">电容</option>
+                                        <option value="inductor">电感</option>
+                                        <option value="transistor">三极管</option>
+                                        <option value="mosfet">MOS管</option>
+                                        <option value="diode">二极管</option>
+                                        <option value="led">LED</option>
+                                        <option value="ic">集成电路</option>
+                                        <option value="switch">开关</option>
+                                        <option value="crystal">晶振</option>
+                                        <option value="other">其他</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-300 mb-2">子类别</label>
+                                    <select id="templateSubCategory" class="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:border-green-400 focus:outline-none">
+                                        <option value="">请先选择分类</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-300 mb-2">型号规格</label>
+                                    <input type="text" id="templateModel" class="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:border-green-400 focus:outline-none" placeholder="如：CF1/4W-1KΩ-J">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-300 mb-2">品牌</label>
+                                    <input type="text" id="templateBrand" class="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:border-green-400 focus:outline-none" placeholder="如：Murata">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-300 mb-2">商品编码</label>
+                                    <input type="text" id="templateProductCode" class="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:border-green-400 focus:outline-none" placeholder="如：PNP-2024-001">
+                                </div>
+                                <div id="templateParamFields">
+                                    <label class="block text-sm font-medium text-gray-300 mb-2">参数值</label>
+                                    <input type="text" id="templateValue" class="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:border-green-400 focus:outline-none" placeholder="如：1kΩ">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-300 mb-2">初始库存</label>
+                                    <input type="number" id="templateStock" class="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:border-green-400 focus:outline-none" placeholder="100" min="0">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-300 mb-2">预警阈值</label>
+                                    <input type="number" id="templateThreshold" class="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:border-green-400 focus:outline-none" placeholder="20" min="0">
+                                </div>
+                            </div>
+                            <div class="mt-4">
+                                <label class="block text-sm font-medium text-gray-300 mb-2 flex items-center">
+                                    卡片显示文字
+                                    <span class="ml-2 text-xs text-gray-500 font-normal">（可选，留空则自动生成）</span>
+                                </label>
+                                <input type="text" id="templateDisplayText" class="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:border-green-400 focus:outline-none" placeholder="如：1kΩ 碳膜电阻">
+                                <p class="text-xs text-gray-500 mt-1">此文字将显示在快速模板卡片上</p>
+                            </div>
+                            <div class="mt-4">
+                                <label class="block text-sm font-medium text-gray-300 mb-2">备注信息</label>
+                                <textarea id="templateNotes" rows="2" class="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:border-green-400 focus:outline-none" placeholder="如：碳膜电阻 精度±5%"></textarea>
+                            </div>
+                            <div class="mt-4">
+                                <label class="block text-sm font-medium text-gray-300 mb-2">元器件图片</label>
+                                <input type="url" id="templateImage" class="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:border-green-400 focus:outline-none" placeholder="https://example.com/image.jpg">
+                                <p class="text-xs text-gray-500 mt-1">可选：输入图片的在线链接，留空则使用默认图片</p>
+                            </div>
+                            <div class="mt-4">
+                                <button id="templateSubmitBtn" type="submit" class="px-6 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors">
+                                    添加模板
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+
+                    <!-- 现有模板列表 -->
+                    <div>
+                        <h3 class="text-lg font-semibold text-white mb-4 flex items-center">
+                            <svg class="w-5 h-5 mr-2 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path>
+                            </svg>
+                            现有模板
+                        </h3>
+                        <div id="templatesList" class="space-y-3">
+                            <!-- 模板列表将在这里动态生成 -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
