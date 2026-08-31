@@ -13,3 +13,5 @@
   # 编辑器临时文件
   .vscode/
   .idea/
+
+  .claude/
