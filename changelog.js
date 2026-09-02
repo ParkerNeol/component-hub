@@ -35,9 +35,23 @@
     */
   window.CHANGELOG_DATA = [
     {
+        version: "v2.3.12",
+        date: "2026-09-02",
+        badge: "LATEST",//STABLE
+        categories: [
+            {
+                title: "新功能",
+                color: "text-green-400",
+                items: [
+                    "元器件模板管理窗口中，在元器件图片字段下方新增复选框，勾选后，每次使用该模板时将自动分配位置编号"
+                ]
+            }
+        ]
+    },
+    {
         version: "v2.3.11",
         date: "2026-08-31",
-        badge: "LATEST",//STABLE
+        badge: "STABLE",//STABLE
         categories: [
             {
                 title: "新功能",
