@@ -2014,8 +2014,8 @@ class ComponentManager {
             productCode: document.getElementById('addComponentProductCode').value,
             category: category,
             subCategory: subCategory,
-            value: this.collectParams(document.getElementById('addComponentCategory').value, '', 'addComponentValue'),
-            params: this.collectParams(document.getElementById('addComponentCategory').value, '', 'addComponentValue'),
+            value: this.collectParams(document.getElementById('addComponentCategory').value, subCategory, 'addComponentValue'),
+            params: this.collectParams(document.getElementById('addComponentCategory').value, subCategory, 'addComponentValue'),
             price: parseFloat(document.getElementById('addComponentPrice').value) || 0,
             threshold: parseInt(document.getElementById('addComponentThreshold').value),
             location: document.getElementById('addComponentLocation').value,
@@ -3048,15 +3048,24 @@ class ComponentManager {
         }
         // 兼容处理：paramsJson 可能是字符串或对象
         let params = null;
+        let plainTextValue = '';
         if (paramsJson) {
-            try {
-                params = typeof paramsJson === 'string' ? JSON.parse(paramsJson) : paramsJson;
-            } catch(e) { params = null; }
+            if (typeof paramsJson === 'string') {
+                // 尝试解析为 JSON
+                try {
+                    params = JSON.parse(paramsJson);
+                } catch(e) {
+                    // 非 JSON 纯文本（如 "TYPEC"、"1kΩ"），保留原始字符串用于显示
+                    plainTextValue = paramsJson;
+                }
+            } else {
+                params = paramsJson;
+            }
         }
 
         if (!defs) {
             // 无分化定义的分类，显示原有单参数输入
-            const val = params && params.length > 0 ? params[0].value : '';
+            const val = plainTextValue;
             container.innerHTML = '<div><label class="block text-sm font-medium text-gray-300 mb-2">参数值</label>' +
                 '<input type="text" id="componentValue" value="' + val + '" class="w-full px-4 py-3 text-white bg-gray-800 border border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" placeholder="例如: 10kΩ">' +
                 '</div>';
