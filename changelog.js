@@ -10,24 +10,21 @@
                   title: "新功能",
                   color: "text-green-400",
                   items: [
-                      "子类别系统：每个元器件品类可设置二级分类，更精细化管理",
-                      "分化参数：电阻/电容/电感/MOS管/二极管/三极管/LED/晶振 支持专属参数输入"
+                      ""
                   ]
               },
               {
                   title: "UI/UX 改进",
                   color: "text-blue-400",
                   items: [
-                      "元器件展示增加子类别显示（如\"电阻 / 贴片电阻\"）",
-                      "参数显示格式优化：如\"1kΩ|1/4W\"紧凑展示"
+                      ""
                   ]
               },
               {
                   title: "Bug 修复",
                   color: "text-red-400",
                   items: [
-                      "修复批量编辑子类别不显示和分化参数不出现的问题",
-                      "修复电容值单位缺少 pF 选项"
+                      ""
                   ]
               }
           ]
@@ -35,9 +32,37 @@
     */
   window.CHANGELOG_DATA = [
     {
+        version: "v2.3.13",
+        date: "2026-09-20",
+        badge: "LATEST",//STABLE
+        categories: [
+            {
+                title: "UI/UX 改进",
+                color: "text-blue-400",
+                items: [
+                    "移除卡片底部的数据手册显示区域，使卡片布局更加简洁紧凑"
+                ]
+            },
+            {
+                title: "新功能",
+                color: "text-green-400",
+                items: [
+                    ""
+                ]
+            },
+            {
+                title: "Bug 修复",
+                color: "text-red-400",
+                items: [
+                    ""
+                ]
+            }
+        ]
+    },
+    {
         version: "v2.3.12",
         date: "2026-09-19",
-        badge: "LATEST",//STABLE
+        badge: "STABLE",//STABLE
         categories: [
             {
                 title: "UI/UX 改进",

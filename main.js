@@ -2491,11 +2491,6 @@ class ComponentManager {
                     <span class="text-gray-400">位置:</span>
                     <span class="text-white">${this.escapeHtml(component.location) || '-'}</span>
                 </div>
-                ${component.datasheet ? `
-                <div class="flex justify-between text-xs sm:text-sm">
-                    <span class="text-gray-400">数据手册:</span>
-                    <a href="${this.escapeHtml(component.datasheet)}" target="_blank" class="text-blue-400 hover:text-blue-300 underline truncate max-w-[140px]" title="${this.escapeHtml(component.datasheet)}">查看PDF</a>
-                </div>` : ''}
             </div>
 
             <div class="flex items-center justify-between mb-1 sm:mb-2 lg:mb-3">
