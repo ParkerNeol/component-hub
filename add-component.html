@@ -16,6 +16,12 @@
             --accent-secondary: #ff6b35;
             --text-primary: #f1f2f6;
             --text-secondary: #a4a6b3;
+            /* 顶部导航栏的**实测**高度：h-16(64px) + border-b(1px) = 65px。
+               它是 fixed + z-50，会盖住页面内容，所以任何「贴顶停留」的 sticky 元素
+               都必须从它下沿往下让位（见 .preview-panel 的 top / max-height）。
+               ⚠️ 单点真源：改导航栏高度（h-16 → 别的）必须同步改这里，否则 sticky
+               面板会重新钻到导航栏底下；两条规则都只读它，不会各自漂移 */
+            --nav-h: 65px;
         }
         
         body {
@@ -82,49 +88,354 @@
             background: rgba(0, 212, 255, 0.1);
         }
         
-        .template-card {
-            background: linear-gradient(135deg, rgba(30, 41, 59, 0.8) 0%, rgba(15, 23, 42, 0.9) 100%);
-            border: 2px solid transparent;
-            border-radius: 10px;
-            cursor: pointer;
-            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        /* 快速模板紧凑列表行（预览卡片内折叠区专用；不含位移/缩放，避免被滚动容器裁切）。
+           列表语义：不画卡片底色与描边，只在 hover/active 时给一层浅底；
+           行高由内容撑开、行距交给 #quickTemplatesList 的 space-y，视觉上是一份清单而不是一叠卡片 */
+        .quick-template-item {
+            border-radius: 6px;
+            transition: background 0.15s ease;
+        }
+
+        .quick-template-item:hover {
+            background: rgba(0, 212, 255, 0.1);
+        }
+
+        .quick-template-item:active {
+            background: rgba(0, 212, 255, 0.18);
+        }
+
+        /* 折叠区列表：高度跟随列高（由卡片高度决定），限高兜底 + 内部滚动 */
+        .quick-tpl-list {
+            flex: 0 1 auto;
+            min-height: 0;
+            max-height: min(440px, 48vh);
+            overflow-y: auto;
+        }
+
+        /* 预览 + 快速模板合并面板：sticky 定位 + 桌面端限高滚动 + 面板外观。
+           ⚠️ 底色必须用 --bg-secondary 而不是 --bg-card：与内部 .component-card 同色时，
+           预览卡就只剩 1px 边框可辨，1:1 观感直接退化。
+           ⚠️ padding 16px 与 .page-grid 里的 444 / 250 两个常量耦合，改这里必须同步改那边
+           ⚠️ top 必须从导航栏下沿起算（--nav-h + 24px），**不能只写 24px**：
+           导航栏是 fixed + z-50，面板一旦停在 top:24px 就会被它压住 41px
+           （65 − 24），而导航栏是半透明 + backdrop-blur，被压的那一段会以模糊鬼影
+           透出来 —— 向下滚动时二者干涉的根因就在这里（v20260427aw 修） */
+        .preview-panel {
+            background: var(--bg-secondary);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 16px;
+            padding: 16px;
+            position: sticky;
+            top: calc(var(--nav-h) + 24px);
+        }
+
+        /* 桌面端（sticky 生效时）限制高度，避免内容高于视口后底部被钉住而不可达。
+           注意 overflow-y: auto 会让 computed 的 overflow-x 也变成 auto —— 面板内一旦宽度
+           算错就会变成横向滚动条，故 .preview-slot 的公式与下限必须保证永不溢出
+           ⚠️ 上限里必须再减掉 --nav-h：可用高度 = 视口 − 导航栏 − 上让位 24 − 下留白 24，
+           否则面板会比「导航栏下沿到视口底部」还高，底边被钉在补不出来的位置
+           ⚠️ 只减 48（= 2×24）是 v20260427aw 之前的写法，那个 48 隐含了「顶部让位 0」，
+           与 top 那条规则是一对，改一个必须同时改另一个 */
+        @media (min-width: 1024px) {
+            .preview-panel {
+                max-height: calc(100vh - var(--nav-h) - 48px);
+                max-height: calc(100dvh - var(--nav-h) - 48px);
+                overflow-y: auto;
+            }
+        }
+
+        /* 面板内左右分栏：左预览卡 / 右模板列，用竖线分区。
+           间距必须用 gap —— 若改成在 .preview-slot 上加 padding，Tailwind preflight 的
+           border-box 会把 padding 算进 width，直接吃掉卡片的 16px 保真 */
+        .preview-split {
+            display: flex;
+            align-items: stretch;
+            gap: 16px;
+        }
+
+        .tpl-col {
+            display: flex;
+            flex-direction: column;
+            flex: 1 1 200px;
+            min-width: 200px;
+            padding-left: 16px;
+            border-left: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        /* 窄屏：<640px 时放宽模板列下限（200px 的分界点是 528px 视口，不放宽会横向溢出），
+           <480px 再彻底转为上下堆叠 */
+        @media (max-width: 479.98px) {
+            .preview-split { flex-direction: column; }
+            .tpl-col {
+                min-width: 0;
+                padding-left: 0;
+                padding-top: 16px;
+                border-left: 0;
+                border-top: 1px solid rgba(255, 255, 255, 0.1);
+            }
+        }
+
+        /* 元器件卡片：与主页 index.html 的 .component-card 逐字一致。
+           有意不含 :hover（主页 index.html 的上浮 + 辉光）—— 预览不可交互，
+           且桌面端外壳是 overflow-y:auto 的滚动口，零内边距下上浮位移与辉光会被裁切 */
+        .component-card {
+            background: var(--bg-card);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.3s;
+            position: relative;
+            overflow: hidden;
+            will-change: transform;
+        }
+
+        /* 库存进度条流光（与主页 index.html 一致） */
+        .stock-indicator {
             position: relative;
             overflow: hidden;
         }
 
-        .template-card::before {
+        .stock-indicator::after {
             content: '';
             position: absolute;
             top: 0;
             left: 0;
             right: 0;
-            height: 2px;
-            background: linear-gradient(90deg, var(--accent-primary) 0%, transparent 100%);
+            bottom: 0;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+            animation: shimmer 2s infinite;
+        }
+
+        @keyframes shimmer {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(100%); }
+        }
+
+        /* 页面两列：左表单 / 右预览面板。替代原来的 lg:grid-cols-3（三列等分，1440 视口下
+           右栏只有 384px，与 214px 的预览卡差 170px，既不齐也留白）。
+           ⚠️ 右栏宽度必须与卡片公式联动，否则 1920 视口下公式宽 310.4 放不进固定宽度的右栏，
+              卡片会被挤窄（1:1 破）或把面板挤出横向滚动条。
+              clamp 中值 = 卡片公式宽 + 250，其中 250 = 16(分栏 gap) + 200(模板列下限) + 32(面板 p-4 左右)
+              + 2(面板左右 border，见下)。⚠️ 少算这 2px 的后果实测过：1920 视口下卡片 308.39、
+              主页 310.39，恰好在「紧贴点」上差 2px，1:1 断言失败
+              下限 536 = 1440 视口下的目标宽度；上限 584 保证表单不低于 600px
+           ⚠️ 1024–1343 段的下限 444（真实最小需求 428，留 16px 余量）同理 */
+        .page-grid {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr);
+            gap: 32px;
+        }
+
+        @media (min-width: 1024px) {
+            .page-grid {
+                grid-template-columns: minmax(0, 1fr) minmax(444px, 42%);
+                /* 折叠几何：右栏轨道宽的镜像（用于推导位移）。⚠️ 必须与上面的
+                   grid-template-columns 同步修改，两者的取值实测逐位一致。
+                   注意这里用 100vw 而不是 42%：var 里的百分比进了 margin 会按
+                   「网格区域（轨道）」解析而不是按网格容器解析，位移会差一倍以上。
+                   代价是带经典滚动条的浏览器里与真实轨道差约 6px，已实测无害
+                   （只让折叠态面板窄 6px，卡片/居中/护栏都不受影响） */
+                --right-w: max(444px, calc((min(100vw, 1280px) - 64px) * 0.42));
+                /* 展开态卡片的实际宽度 = 公式宽，受面板可用空间约束，并有 180 下限。
+                   必须有 min() 那一层：≥2038 视口下公式宽（336/438）放不进被 584 封顶的
+                   面板，flex 会把 slot 压到 334，不压回去则折叠后卡片会突然变宽。
+                   250 = 16(分栏 gap) + 200(.tpl-col 下限) + 34(面板 p-4 左右 + 左右 border) */
+                --slot-w: max(180px, min(var(--card-w), calc(var(--right-w) - 250px)));
+                /* 折叠态面板宽 = slot + 34(面板左右内边距 + 左右 border)。
+                   折叠后**不留竖条**：面板的内容盒因此与预览卡片逐像素等宽，
+                   即「卡片右缘 = 面板内容右缘」，折叠开关就压在这个角上（见下面的 .tpl-col 规则）。
+                   于是折叠态留给 slot 的空间与展开态完全相等 ⇒ 卡片宽度恒定
+                   ⚠️ 34 与 .page-grid.tpl-collapsed 那组规则里的 gap:0 / margin-left:-46px
+                      是一个整体：三者之和必须让折叠态内容盒恰好等于 slot（多 1px 都会挤卡片） */
+                --panel-collapsed: calc(var(--slot-w) + 34px);
+                /* 折叠腾出的空间对半分给左右两侧 ⇒ 整块在容器内居中 */
+                --shift: calc((var(--right-w) - var(--panel-collapsed)) / 2);
+            }
+        }
+
+        @media (min-width: 1344px) {
+            .page-grid {
+                grid-template-columns: minmax(0, 1fr) clamp(536px, calc((100vw - 368px) / 5 + 250px), 584px);
+                --right-w: clamp(536px, calc((100vw - 368px) / 5 + 250px), 584px);
+            }
+        }
+
+        /* ===== 折叠态：模板列水平收成竖条，两块内容整体右移居中 =====
+           ⚠️ 全部规则必须限定在 ≥1024：<1024 是单列堆叠，模板列本来就在卡片下方/右侧，
+              没有"居中"可言，若在这里也套上 basis=26px，会出现「标签被裁掉 + 一大片空列」 */
+        @media (min-width: 1024px) {
+            /* 左栏：宽度必须显式写 100%（= 轨道宽）——只加 margin-left 会被 stretch 吃掉，
+               变成「表单变窄」而不是「整体右移」 */
+            .page-grid.tpl-collapsed .form-col {
+                margin-left: var(--shift);
+                width: 100%;
+            }
+            /* 右栏外层：对称 margin ⇒ 使用宽度 = 轨道宽 − 2×shift，左边缘右移 shift，
+               一步得到「面板收窄 + 整体右移」，且不依赖 --right-w 的精度（自动对称） */
+            .page-grid.tpl-collapsed .preview-col {
+                margin-left: var(--shift);
+                margin-right: var(--shift);
+            }
+            /* 折叠态：分栏 gap 收到 0 —— 面板内容盒 = slot + 模板列的外宽。
+               模板列外宽在折叠态是 0（见下），于是内容盒恰好 = 卡片宽，右缘严丝合缝 */
+            .page-grid.tpl-collapsed .preview-split {
+                gap: 0;
+            }
+            /* 模板列：不再往右占位，而是变成一扇 46px 宽的窗口，**整体左移 46px**
+               ⇒ 窗口右缘正好压在卡片右缘上（= 面板内容右缘），窗口里只装得下
+               「箭头 + 模板」这 46px，即折叠开关落在面板右上角、与卡片右缘对齐。
+               ⚠️ 46 = 16(箭头) + 6(space-x-1.5) + 24(「模板」两字 @text-xs)：
+                  多 1px 会把卡片的 1:1 挤掉，少 1px 会裁掉「板」字右边 —— 改标签文字必须同步
+               ⚠️ 负 margin 是这里的支点：外宽 = 46 + (−46) = 0，分栏那一行因此不多占一丝宽度
+               ⚠️ basis 必须显式写 46（不能留 200），否则 flex 会把它撑回 200 把槽位挤窄；
+                  basis 与 min-width 也必须同时改（只改 min-width 无效，v20260427ao 实测过）
+               ⚠️ 不能写成 flex 简写：必须保留 flex-grow: 1，否则窗口会在动画中与面板右缘脱开
+               overflow: hidden 负责裁掉右侧的「快速模板 (n)」与管理按钮（它们留在文档流里，
+               屏幕阅读器仍可读出，不额外加 display:none；折叠态要显示的是紧跟箭头的那一小段） */
+            .page-grid.tpl-collapsed .tpl-col {
+                flex-basis: 46px;
+                min-width: 46px;
+                margin-left: -46px;
+                padding-left: 0;
+                /* 折叠后不再画那条浅色竖分割线：窗口里只剩「› 模板」，
+                   留着线会像旁边还挂着一列内容（展开态保留，见 .tpl-col 基础样式）。
+                   ⚠️ 这里是**直接删掉**而不是像上一版那样只改透明：窗口只有 46px，
+                      1px 的 border 会把内容盒挤成 45px，卡片右缘就对不上了 */
+                border-left: 0;
+                overflow: hidden;
+            }
+            /* ⚠️ 只靠上面的 overflow: hidden 裁不干净：按钮是 flex 行，只要可收缩宽度不够，
+               flex 收缩就会先作用在箭头（w-4 h-4 被压成 0 宽，箭头消失）与文字上（CJK 逐字换行，
+               变成几行竖排文字挂在窗口里，肉眼可见）。故：箭头锁死 16px、文字 nowrap 且不收缩，
+               让溢出量全部落到右侧、被 overflow: hidden 裁掉；动画中即为"标签滑出窗口"的观感 */
+            .page-grid.tpl-collapsed .tpl-col #quickTemplatesToggle > svg {
+                flex: 0 0 16px;
+            }
+            .page-grid.tpl-collapsed .tpl-col #quickTemplatesToggle > span {
+                flex-shrink: 0;
+                white-space: nowrap;
+            }
+            /* 折叠态标签换人：只看「模板」两个字（展开态是「快速模板 (n)」）。
+               用 display 切换而不是靠裁切——「快速模板」在 46px 的窗口里裁不干净，
+               会露出「快速模」半截；被 display:none 的那段不进无障碍树，
+               但两态各有且只有一个可读标签，合并读出来仍是「模板」或「快速模板 (n)」 */
+            .page-grid.tpl-collapsed .tpl-col .tpl-label-mini {
+                display: inline;
+            }
+            /* 窗口里可点的只有「箭头 + 模板」，把整个 46×44 做成热区。
+               ⚠️ 8px 顶内边距 = (32 − 16) / 2：把 16px 高的这一行摆在左列 32px 标题行的中线上
+                  （= 展开态「快速模板」文字所在的那条线），观感才是"同一行、只是右边被收走"
+               ⚠️ align-items 必须是 flex-start：默认 center 会把这行在 44px 热区里居中，
+                  落到标题行中线下方 6px 处 */
+            .page-grid.tpl-collapsed .tpl-col #quickTemplatesToggle {
+                align-self: stretch;
+                align-items: flex-start;
+                padding-top: 8px;
+                min-height: 44px;
+            }
+        }
+
+        /* 折叠态专用短标签「模板」：默认隐藏，展开态显示的是「快速模板 (n)」。
+           ⚠️ 显示规则写在上面 ≥1024 的媒体查询里：<1024 只是收列表、不折叠成窗口，
+              那时若也换上短标签，就会读成「模板 快速模板 (7)」 */
+        .tpl-label-mini {
+            display: none;
+        }
+
+        /* 列表折叠：全宽度生效（<1024 也保留"只收列表"的原有行为），替代原来的 hidden */
+        .page-grid.tpl-collapsed .quick-tpl-list {
+            max-height: 0;
             opacity: 0;
-            transition: opacity 0.25s ease;
+            visibility: hidden;
+            overflow: hidden;
         }
 
-        .template-card:hover::before {
-            opacity: 1;
+        /* 过渡只在切换瞬间挂载：这些值含 100vw / vh，若常驻 transition，窗口 resize 时
+           数值会以动画方式滞后爬行。
+           ⚠️ 下列 duration 与缓动必须完全一致：位移按 --shift 走、模板列的 basis + margin
+              + 分栏 gap 按 216px 走，比例一旦不一致，slot 的可用空间会在中途低于公式宽，
+              卡片会抽一下再回弹。
+              折叠态三者的和必须实时等于面板收窄量：gap(16→0) + 外宽(basis 200→46,
+              margin 0→−46，即 200→0) = 216，与 --panel-collapsed 的 250→34 逐帧吻合 */
+        .page-grid.tpl-animating .form-col,
+        .page-grid.tpl-animating .preview-col {
+            transition: margin 250ms cubic-bezier(0.4, 0, 0.2, 1);
         }
 
-        .template-card:hover {
-            border-color: var(--accent-primary);
-            transform: translateY(-3px) scale(1.02);
-            box-shadow: 0 10px 30px -10px rgba(0, 212, 255, 0.3);
+        .page-grid.tpl-animating .preview-split {
+            transition: gap 250ms cubic-bezier(0.4, 0, 0.2, 1);
         }
 
-        .template-card:active {
-            transform: translateY(-1px) scale(0.98);
+        .page-grid.tpl-animating .tpl-col {
+            transition: flex-basis 250ms cubic-bezier(0.4, 0, 0.2, 1),
+                        min-width 250ms cubic-bezier(0.4, 0, 0.2, 1),
+                        margin-left 250ms cubic-bezier(0.4, 0, 0.2, 1),
+                        padding-left 250ms cubic-bezier(0.4, 0, 0.2, 1),
+                        border-left-width 250ms cubic-bezier(0.4, 0, 0.2, 1);
+            /* 展开方向必须也要裁切：tpl-collapsed 一撤，窗口的 overflow:hidden 就没了，
+               而此时列宽才从 46px 长回来，里面的列表会先溢出面板，实测面板出现 20px
+               横向滚动条（折叠方向因为类还在，一直是裁切的） */
+            overflow: hidden;
         }
-        
-        .preview-card {
-            background: var(--bg-card);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: 12px;
-            position: sticky;
-            top: 24px;
-            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.3s;
+
+        /* 开关的 8px 顶内边距同样只在切换瞬间挂载（不挂的话它会先"啪"地跳一下，
+           再跟着列宽与位移慢慢走） */
+        .page-grid.tpl-animating .tpl-col #quickTemplatesToggle {
+            transition: padding-top 250ms cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .page-grid.tpl-animating .quick-tpl-list {
+            transition: max-height 250ms cubic-bezier(0.4, 0, 0.2, 1),
+                        opacity 200ms linear,
+                        visibility 250ms;
+        }
+
+        /* 预览卡片宽度：对齐主页 #componentGrid 的实际列宽，与主页卡片做到 1:1 等比。
+           ⚠️ 以下常量硬编码了 index.html 的布局参数：侧栏 w-56(224px)、
+           main 的 p-3 / sm:p-4 / lg:p-6 内边距、网格 grid-cols-2 lg:grid-cols-5
+           与 gap-2 / sm:gap-4 / lg:gap-6。若主页这些布局参数变更，此处必须同步修改。
+           ⚠️ 公式必须挂在 .preview-slot（flex item 自身）上，不能挂在 #componentPreview 上：
+              后者是 flex item 的内容，内含不可解析百分比的 math 函数会让该 item 的
+              flex-basis: auto 退化为内容尺寸，卡片会被压成 max-content（实测 1440 下 55px）
+              且随表单内容长度变化。
+           ⚠️ --card-w 是卡片宽度的唯一真源（.preview-slot 与折叠几何都读它），下面三条
+              :root 媒体块必须按 基准 → max-width:1023.98 → max-width:639.98 的顺序书写，
+              否则同权重下分支会成死代码 */
+        :root {
+            --card-w: max(180px, calc((100vw - 368px) / 5));
+        }
+
+        /* 640–1023px：侧栏隐藏，main 为 sm:p-4(32px)，grid-cols-2 且 gap-4(16px) */
+        @media (max-width: 1023.98px) {
+            :root { --card-w: calc((100vw - 48px) / 2); }
+        }
+
+        /* <640px：main 为 p-3(24px)，grid-cols-2 且 gap-2(8px)，180px 为可用下限。
+           注意：index.html 里 @media (max-width:768px) 的 .component-grid
+           auto-fill minmax(280px,1fr) 覆盖规则实际不生效（Tailwind CDN 注入的
+           样式在级联中胜出，实测 520/600px 下仍是两列等宽 + 8px 间距），故此处按
+           grid-cols-2 计算，不要照搬那条覆盖规则 */
+        @media (max-width: 639.98px) {
+            :root { --card-w: max(180px, calc((100vw - 32px) / 2)); }
+        }
+
+        .preview-slot {
+            flex: 0 1 auto;
+            width: min(var(--card-w), 100%);
+            min-width: 180px; /* 1024–1268px 视口下主页卡片仅 131–180px，过窄不可用，故设下限 */
+        }
+
+        /* 卡片只吃满 slot，宽度完全由上面的公式决定 */
+        #componentPreview {
+            width: 100%;
+        }
+
+        /* 480–639px：模板列下限放宽到 160px（200px 的分界点是 528px 视口，不放宽会横向溢出）。
+           必须限定 min-width: 480px —— 480 以下已转为上下堆叠，那边把 min-width 置 0
+           ⚠️ flex-basis 必须跟着 min-width 一起改，只改 min-width 是无效的：basis 仍是 200px 时
+              flex-shrink 会按 basis 比例在 slot 与模板列之间分摊收缩，模板列的下限根本没被触碰，
+              被压窄的反而是 slot —— 实测 480 视口卡片 224→209.69、520 视口 244→240.58，1:1 直接破 */
+        @media (min-width: 480px) and (max-width: 639.98px) {
+            .tpl-col { flex-basis: 160px; min-width: 160px; }
         }
 
         .quantity-btn {
@@ -247,9 +558,9 @@
     </header>
 
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-20 pb-8">
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div class="page-grid">
             <!-- 表单区域 -->
-            <div class="lg:col-span-2 space-y-6">
+            <div class="form-col space-y-6">
                 <!-- 基本信息 -->
                 <div class="form-card p-6 fade-in">
                     <h2 class="text-lg font-semibold mb-6 flex items-center">
@@ -454,64 +765,81 @@
                         <p class="text-sm text-gray-500 mt-2">可选：输入图片的在线链接，留空则使用默认图片</p>
                     </div>
                 </div>
-
-                <!-- 快速模板 -->
-                <div class="form-card p-6 fade-in">
-                    <h2 class="text-lg font-semibold mb-6 flex items-center justify-between">
-                        <div class="flex items-center">
-                            <div class="w-8 h-8 bg-purple-500/20 rounded-lg flex items-center justify-center mr-3">
-                                <svg class="w-4 h-4 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path>
-                                </svg>
-                            </div>
-                            快速模板
-                        </div>
-                        <button id="manageTemplatesBtn" class="px-3 py-1 text-sm bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors flex items-center space-x-1">
-                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
-                            </svg>
-                            <span>管理模板</span>
-                        </button>
-                    </h2>
-
-                    <!-- 提示信息 -->
-                    <div id="noTemplatesHint" class="text-center py-8 text-gray-400">
-                        <svg class="w-12 h-12 mx-auto mb-3 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path>
-                        </svg>
-                        <p class="text-sm">暂无模板</p>
-                        <p class="text-xs mt-1">点击"管理模板"按钮添加自定义模板</p>
-                    </div>
-
-                    <!-- 自定义模板 -->
-                    <div id="customTemplatesSection" class="hidden">
-                        <div id="customTemplatesList" class="space-y-5"></div>
-                    </div>
-                </div>
             </div>
 
-            <!-- 预览区域 -->
-            <div class="lg:col-span-1">
-                <div class="preview-card p-3 sm:p-4 lg:p-6 fade-in">
-                    <h2 class="text-lg font-semibold mb-6 flex items-center">
-                        <div class="w-8 h-8 bg-indigo-500/20 rounded-lg flex items-center justify-center mr-3">
-                            <svg class="w-4 h-4 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
-                            </svg>
-                        </div>
-                        实时预览
-                    </h2>
-                    
-                    <div id="componentPreview">
-                        <div class="text-center py-8">
-                            <div class="w-16 h-16 bg-gray-700 rounded-full flex items-center justify-center mx-auto mb-4">
-                                <svg class="w-8 h-8 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path>
-                                </svg>
+            <!-- 预览 + 快速模板（合并面板）
+                 注意：这层无名 wrapper <div> 不能删 —— grid item 被 stretch 到整行高，
+                 是内部 sticky 面板的行程来源，删掉 或 把 .preview-panel 提为 grid item 都会让 sticky 失效 -->
+            <div class="preview-col">
+                <div class="preview-panel fade-in">
+                    <!-- 面板内左右分栏：左预览卡（宽度与主页卡片 1:1）/ 右快速模板列表
+                         ⚠️「实时预览」标题在**左列内部**，不在面板顶部 —— 两列标题因此同处面板内容的
+                            第一行、顶部对齐（此前标题独占面板顶行，比「快速模板」整整高出一行）
+                         ⚠️ 标题与内容块之间统一 mb-4、右列再补 min-h-8（= 左列标题里 32px 的图标盒），
+                            于是卡片与模板列表也从同一个 y 起（与改造前逐像素一致） -->
+                    <div class="preview-split">
+                        <div class="preview-slot">
+                            <div class="flex items-center mb-4">
+                                <h2 class="text-lg font-semibold flex items-center">
+                                    <div class="w-8 h-8 bg-indigo-500/20 rounded-lg flex items-center justify-center mr-3">
+                                        <svg class="w-4 h-4 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+                                        </svg>
+                                    </div>
+                                    实时预览
+                                </h2>
                             </div>
-                            <p class="text-gray-400">填写信息查看预览</p>
+                            <div id="componentPreview" class="component-card p-2 sm:p-3 lg:p-4">
+                                <div class="text-center py-8">
+                                    <div class="w-16 h-16 bg-gray-700 rounded-full flex items-center justify-center mx-auto mb-4">
+                                        <svg class="w-8 h-8 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path>
+                                        </svg>
+                                    </div>
+                                    <p class="text-gray-400">填写信息查看预览</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 快速模板列（可折叠）。折叠时整列横向收成 56px 竖条（按钮留在列内），
+                             故不能整列 display:none；桌面端另由 .page-grid.tpl-collapsed 把面板
+                             收窄、两块内容一起右移居中，见 <style> 里的折叠态规则 -->
+                        <div class="tpl-col">
+                            <!-- 标题行：折叠开关 + 管理入口
+                                 ⚠️ 管理按钮必须是开关的**兄弟**，不能塞进 <button> 里 —— 否则点「管理」会连带触发折叠，
+                                    且 button 嵌套 button 是非法 HTML
+                                 ⚠️ mb-4 / shrink-0 / self-start 移到这层 wrapper 上（原来是开关自己的类）；
+                                    折叠态下整行溢出仍由 .tpl-col 的 overflow:hidden 裁掉，只剩 16px 箭头
+                                 ⚠️ min-h-8 而非 h-8：折叠态下开关自带 min-height:44px（见 <style>），
+                                    写死 32px 会把那 44px 热区裁掉一截；min-height 让 wrapper 在折叠态被撑到 44px -->
+                            <div class="flex items-center gap-1.5 mb-4 min-h-8 shrink-0 self-start">
+                                <button id="quickTemplatesToggle" type="button" aria-controls="quickTemplatesBody" aria-expanded="true" title="展开/折叠快速模板" class="flex items-center space-x-1.5 group shrink-0">
+                                    <svg id="quickTemplatesChevron" class="w-4 h-4 text-purple-400 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                                    </svg>
+                                    <!-- 折叠态标签：默认 display:none，右上角竖条里才换成它（见 <style>）。
+                                         必须紧跟箭头 —— 竖条只显示到它为止，后面的「快速模板 (n)」整段被裁掉 -->
+                                    <span class="tpl-label-mini text-xs font-semibold text-white group-hover:text-purple-300 transition-colors">模板</span>
+                                    <span class="text-sm font-semibold text-white group-hover:text-purple-300 transition-colors">快速模板</span>
+                                    <span id="quickTemplatesCount" class="text-xs text-gray-500">(0)</span>
+                                </button>
+                                <button id="manageTemplatesBtn" class="px-2 py-0.5 text-[11px] bg-gray-700 hover:bg-gray-600 rounded-md transition-colors flex items-center space-x-1 shrink-0" title="管理模板">
+                                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                                    </svg>
+                                    <span>管理</span>
+                                </button>
+                            </div>
+
+                            <div id="quickTemplatesBody" class="quick-tpl-list pr-1">
+                                <div id="quickTemplatesList" class="space-y-2"></div>
+                                <div id="quickTemplatesEmpty" class="text-center py-6 text-gray-500">
+                                    <p class="text-xs">暂无模板</p>
+                                    <p id="quickTemplatesEmptyHint" class="text-xs mt-1 text-gray-600">点击「管理」创建模板</p>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -532,8 +860,12 @@
             
             init() {
                 this.bindEvents();
+                // HTML 里输入框是「可用」的初始态，禁用态全靠 sync 推导 ⇒ 首屏必须跑一次，
+                // 否则用户看到的初始状态自相矛盾（auto 未勾选、位置编号框却是禁用的）
+                this.syncTemplateLocationControls();
                 this.initAnimations();
                 this.loadTemplates();
+                this.applyQuickTemplatesCollapsedState();
                 this.updateSubCategoryOptions();
                 this.updateParamFields();
                 this.loadCustomCategoriesIntoForm();
@@ -623,6 +955,12 @@
                     autoComponentLocationBtn.addEventListener('click', () => this.autoAssignComponentLocation());
                 }
 
+                // 快速模板折叠区开关
+                const quickTemplatesToggle = document.getElementById('quickTemplatesToggle');
+                if (quickTemplatesToggle) {
+                    quickTemplatesToggle.addEventListener('click', () => this.toggleQuickTemplates());
+                }
+
                 // 模板管理
                 const manageTemplatesBtn = document.getElementById('manageTemplatesBtn');
                 if (manageTemplatesBtn) {
@@ -644,6 +982,14 @@
                 const cancelEditTemplateBtn = document.getElementById('cancelEditTemplate');
                 if (cancelEditTemplateBtn) {
                     cancelEditTemplateBtn.addEventListener('click', () => this.cancelEditTemplate());
+                }
+
+                // 模板表单 - 勾选「自动匹配位置编号」时，手动位置编号框禁用并清空。
+                // ⚠️ 反向不监听：#templateLocation 在勾选自动时已是 disabled，收不到 input 事件，
+                //    反向互斥不可达，加了就是死代码
+                const templateAutoAssignBox = document.getElementById('templateAutoAssignLocation');
+                if (templateAutoAssignBox) {
+                    templateAutoAssignBox.addEventListener('change', () => this.syncTemplateLocationControls());
                 }
 
                 // 模板表单 - 类别切换时更新子类别和参数
@@ -739,18 +1085,21 @@
                 };
                 
                 const stockPercent = Math.min(100, (stock / Math.max(threshold * 3, 1)) * 100);
-                const previewImage = document.getElementById('componentImage').value.trim() || this.getDefaultImage(category);
                 // 支持自定义类别名称显示
                 const customCats = JSON.parse(localStorage.getItem('customCategories') || '[]');
                 const catName = categoryNames[category] || customCats.find(c => c.key === category)?.name || category;
                 const categoryDisplay = catName + (subCategory ? ' / ' + subCategory : '');
-                
-                // 生成与主页 getComponentCardHTML 完全一致的卡片结构
+
+                // 图片：有自定义链接用链接，否则用类别默认图（与保存逻辑一致）
+                const previewImage = document.getElementById('componentImage').value.trim() || this.getDefaultImage(category);
+                const datasheetUrl = document.getElementById('componentDatasheet').value.trim();
+
+                // 生成与主页 getComponentCardHTML 逐类名一致的卡片结构（比例/字号/间距完全对齐）
                 const previewHTML = `
-                    <div class="flex items-start justify-between mb-2 sm:mb-3 lg:mb-4">
+                    <div class="flex items-start justify-between mb-1 sm:mb-2 lg:mb-3">
                         <div class="flex-1">
-                            <h3 class="text-sm sm:text-base lg:text-lg font-semibold text-white mb-0.5">${name}</h3>
-                            <p class="text-xs sm:text-sm text-gray-400 truncate">${model}</p>
+                            <h3 class="text-xs sm:text-sm lg:text-base font-semibold text-white mb-0.5">${this.escapeHtml(name)}</h3>
+                            <p class="text-[10px] sm:text-xs text-gray-400 truncate">${this.escapeHtml(model)}</p>
                         </div>
                         <div class="flex items-center space-x-2">
                             <div class="w-3 h-3 rounded-full ${stockColors[stockStatus]}"></div>
@@ -758,36 +1107,42 @@
                         </div>
                     </div>
 
-                    <div class="mb-2 sm:mb-3 lg:mb-4">
-                        <img src="${previewImage}" alt="${name}"
-                             class="w-full h-20 sm:h-28 lg:h-32 object-cover rounded-lg bg-gray-700"
+                    <div class="mb-1 sm:mb-2 lg:mb-3">
+                        <img src="${this.escapeAttr(previewImage)}" alt="${this.escapeAttr(name)}"
+                             class="w-full h-14 sm:h-16 lg:h-20 object-cover rounded-lg bg-gray-700"
                              onerror="this.src='resources/images/hero-circuit-board.png'">
+                        <div class="text-[10px] text-gray-500 mt-0.5 truncate"><a href="${this.escapeAttr(previewImage)}" target="_blank" class="hover:text-blue-400" title="点击查看原图">查看原图</a></div>
                     </div>
 
-                    <div class="space-y-1 sm:space-y-1.5 lg:space-y-2 mb-2 sm:mb-3 lg:mb-4">
-                        <div class="flex justify-between text-xs sm:text-sm">
+                    <div class="space-y-0.5 sm:space-y-1 lg:space-y-1.5 mb-1 sm:mb-2 lg:mb-3">
+                        <div class="flex justify-between text-[10px] sm:text-xs">
                             <span class="text-gray-400">类别:</span>
-                            <span class="text-white">${categoryDisplay}</span>
+                            <span class="text-white">${this.escapeHtml(categoryDisplay)}</span>
                         </div>
-                        <div class="flex justify-between text-sm">
+                        <div class="flex justify-between text-xs sm:text-sm">
                             <span class="text-gray-400">品牌:</span>
-                            <span class="text-white">${brand || '-'}</span>
+                            <span class="text-white">${this.escapeHtml(brand) || '-'}</span>
                         </div>
-                        <div class="flex justify-between text-sm">
+                        <div class="flex justify-between text-xs sm:text-sm">
                             <span class="text-gray-400">商品编码:</span>
-                            <span class="text-white">${productCode || '-'}</span>
+                            <span class="text-white">${this.escapeHtml(productCode) || '-'}</span>
                         </div>
-                        <div class="flex justify-between text-sm">
+                        <div class="flex justify-between text-xs sm:text-sm">
                             <span class="text-gray-400">参数:</span>
-                            <span class="text-white">${value}</span>
+                            <span class="text-white">${this.escapeHtml(value)}</span>
                         </div>
-                        <div class="flex justify-between text-sm">
+                        <div class="flex justify-between text-xs sm:text-sm">
                             <span class="text-gray-400">位置:</span>
-                            <span class="text-white">${location}</span>
+                            <span class="text-white">${this.escapeHtml(location) || '-'}</span>
                         </div>
+                        ${datasheetUrl ? `
+                        <div class="flex justify-between text-xs sm:text-sm">
+                            <span class="text-gray-400">数据手册:</span>
+                            <a href="${this.escapeAttr(datasheetUrl)}" target="_blank" class="text-blue-400 hover:text-blue-300 underline truncate max-w-[140px]" title="${this.escapeAttr(datasheetUrl)}">查看PDF</a>
+                        </div>` : ''}
                     </div>
 
-                    <div class="flex items-center justify-between mb-2 sm:mb-3 lg:mb-4">
+                    <div class="flex items-center justify-between mb-1 sm:mb-2 lg:mb-3">
                         <div class="flex items-center space-x-3">
                             <button class="quantity-btn-compact sm:quantity-btn">
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -795,7 +1150,7 @@
                                 </svg>
                             </button>
                             <div class="text-center">
-                                <div class="stock-text text-base sm:text-lg font-bold text-white">${stock}</div>
+                                <div class="stock-text text-sm sm:text-base font-bold text-white">${stock}</div>
                                 <div class="text-xs text-gray-400">库存</div>
                             </div>
                             <button class="quantity-btn-compact sm:quantity-btn">
@@ -806,19 +1161,22 @@
                         </div>
                     </div>
 
-                    <div class="stock-indicator h-1.5 sm:h-2 bg-gray-700 rounded-full overflow-hidden mb-2 sm:mb-3 lg:mb-4">
+                    <div class="stock-indicator h-1 sm:h-1.5 bg-gray-700 rounded-full overflow-hidden mb-1 sm:mb-2 lg:mb-3">
                         <div class="h-full ${stockColors[stockStatus]} transition-all duration-300"
                              style="width: ${stockPercent}%"></div>
                     </div>
 
-                    <div class="grid grid-cols-2 gap-2 mb-2">
-                        <button class="py-1.5 sm:py-2 text-xs sm:text-sm rounded-lg border-2 border-orange-400 text-orange-400 hover:bg-orange-400 hover:text-white transition-all duration-300 flex items-center justify-center space-x-1">
+                    <!-- 出库和入库按钮（仅作预览，不可交互） -->
+                    <div class="grid grid-cols-2 gap-1.5 mb-2">
+                        <button class="py-1 sm:py-1.5 text-xs sm:text-sm rounded-lg border-2 border-orange-400 text-orange-400 hover:bg-orange-400 hover:text-white transition-all duration-300 flex items-center justify-center space-x-1"
+                                title="加入出库清单 (Ctrl+O)">
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"></path>
                             </svg>
                             <span>出库</span>
                         </button>
-                        <button class="py-1.5 sm:py-2 text-xs sm:text-sm rounded-lg border-2 border-green-400 text-green-400 hover:bg-green-400 hover:text-white transition-all duration-300 flex items-center justify-center space-x-1">
+                        <button class="py-1.5 sm:py-2 text-xs sm:text-sm rounded-lg border-2 border-green-400 text-green-400 hover:bg-green-400 hover:text-white transition-all duration-300 flex items-center justify-center space-x-1"
+                                title="加入入库清单 (Ctrl+I)">
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
                             </svg>
@@ -830,10 +1188,23 @@
                         查看详情
                     </button>
                 `;
-                
+
                 document.getElementById('componentPreview').innerHTML = previewHTML;
             }
-            
+
+            // HTML 文本转义（对齐 main.js 的 ComponentManager.escapeHtml）
+            escapeHtml(str) {
+                if (str === null || str === undefined) return '';
+                const div = document.createElement('div');
+                div.textContent = String(str);
+                return div.innerHTML;
+            }
+
+            // 属性值转义：escapeHtml 不处理引号，用在 src/href/alt/title 等属性位会逃逸（main.js 的既有隐患）
+            escapeAttr(str) {
+                return this.escapeHtml(str).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+            }
+
             loadTemplates() {
                 this.templates = {};
 
@@ -877,6 +1248,50 @@
             // 关闭模板管理模态框
             closeTemplateManager() {
                 document.getElementById('templateManagerModal').classList.add('hidden');
+            }
+
+            // 设置快速模板区的折叠状态
+            //   persist=false 时不写入 localStorage；animate=true 时挂上过渡（仅点击切换时用）
+            //   折叠状态挂在 .page-grid 上（tpl-collapsed）：桌面端据此把模板列收成竖条、
+            //   面板收窄、两块内容整体右移居中；<1024 只收列表。不再使用 hidden（display:none
+            //   无法参与过渡）
+            setQuickTemplatesCollapsed(collapsed, persist = true, animate = false) {
+                const grid = document.querySelector('.page-grid');
+                const chevron = document.getElementById('quickTemplatesChevron');
+                const toggle = document.getElementById('quickTemplatesToggle');
+                if (grid) {
+                    grid.classList.toggle('tpl-animating', animate);
+                    grid.classList.toggle('tpl-collapsed', collapsed);
+                    if (animate) {
+                        // 过渡只在切换期间存在，320ms 后移除（100vw/vh 派生的值不能常驻过渡，
+                        // 否则窗口 resize 时它们会以动画方式滞后爬行）
+                        clearTimeout(this._tplAnimTimer);
+                        this._tplAnimTimer = setTimeout(() => grid.classList.remove('tpl-animating'), 320);
+                    }
+                }
+                if (chevron) chevron.classList.toggle('-rotate-90', collapsed);
+                if (toggle) toggle.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+                if (persist) {
+                    try {
+                        localStorage.setItem('quickTemplatesCollapsed', collapsed ? '1' : '0');
+                    } catch (e) {}
+                }
+            }
+
+            // 折叠/展开快速模板区（点击 → 带动画）
+            toggleQuickTemplates() {
+                const grid = document.querySelector('.page-grid');
+                if (!grid) return;
+                this.setQuickTemplatesCollapsed(!grid.classList.contains('tpl-collapsed'), true, true);
+            }
+
+            // 应用已保存的折叠状态（初始化时调用，不加动画）
+            applyQuickTemplatesCollapsedState() {
+                let collapsed = false;
+                try {
+                    collapsed = localStorage.getItem('quickTemplatesCollapsed') === '1';
+                } catch (e) {}
+                this.setQuickTemplatesCollapsed(collapsed, false, false);
             }
 
             // 渲染模板列表
@@ -923,11 +1338,15 @@
 
                     categoryGroups[category].forEach(template => {
                         const isCustom = template.id.startsWith('custom-');
+                        // 「显示在快速模板中」的勾选状态（缺省 true，兼容没有该字段的旧数据）。
+                        // 未勾选的模板：卡片正文压暗以示区别，但**勾选行本身不压暗**（压暗会像被禁用）
+                        const inQuick = template.inQuickTemplates !== false;
+                        const dimCls = inQuick ? '' : ' opacity-50';
                         const templateDiv = document.createElement('div');
                         templateDiv.className = `bg-gray-700/50 rounded-lg p-3 ${isCustom ? 'border border-green-500/30' : ''}`;
 
                         const headerDiv = document.createElement('div');
-                        headerDiv.className = 'flex items-start justify-between mb-1';
+                        headerDiv.className = 'flex items-start justify-between mb-1' + dimCls;
 
                         const nameDiv = document.createElement('div');
                         nameDiv.className = 'flex-1';
@@ -1007,21 +1426,61 @@
                         templateDiv.appendChild(headerDiv);
 
                         const detailsDiv = document.createElement('div');
-                        detailsDiv.className = 'grid grid-cols-2 gap-1 text-xs text-gray-400';
+                        detailsDiv.className = 'grid grid-cols-2 gap-1 text-xs text-gray-400' + dimCls;
 
+                        const autoBadge = template.autoAssignLocation
+                            ? `<div class="col-span-2 text-cyan-400"><svg class="w-3 h-3 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>自动匹配位置编号</div>`
+                            : '';
+
+                        // location / notes 是任意用户文本，必须过 escapeHtml：含 </div> 会直接撕坏卡片的 grid，
+                        // 且是注入点。stock / threshold 是数字，本次不动（既有写法）
                         detailsDiv.innerHTML = `
                             <div>库存: ${template.stock}</div>
                             <div>预警: ${template.threshold}</div>
-                            <div class="col-span-2">备注: ${template.notes || '-'}</div>
-                            ${template.autoAssignLocation ? '<div class="col-span-2 text-cyan-400"><svg class="w-3 h-3 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>自动匹配位置编号</div>' : ''}
+                            <div class="col-span-2">位置编号: ${this.escapeHtml(template.location) || '-'}</div>
+                            <div class="col-span-2">备注: ${this.escapeHtml(template.notes) || '-'}</div>
+                            ${autoBadge}
                         `;
                         templateDiv.appendChild(detailsDiv);
+
+                        // 「显示在快速模板中」勾选行：勾选后该模板才出现在预览面板的快速模板列表里。
+                        // 状态存在模板对象自身的 inQuickTemplates 上（随 saveCustomTemplates 一起持久化），
+                        // 不额外开一个 id 列表 —— 模板被删除时状态自然一起消失
+                        const quickRow = document.createElement('label');
+                        quickRow.className = 'mt-2 flex items-center gap-1.5 cursor-pointer group';
+                        quickRow.title = '勾选后，该模板会出现在预览面板的「快速模板」列表中';
+
+                        const quickBox = document.createElement('input');
+                        quickBox.type = 'checkbox';
+                        quickBox.className = 'w-3.5 h-3.5 rounded bg-gray-700 border-gray-600 text-cyan-500 focus:ring-cyan-400 focus:ring-offset-gray-800 cursor-pointer shrink-0';
+                        quickBox.checked = inQuick;
+
+                        const quickText = document.createElement('span');
+                        quickText.className = 'text-xs text-gray-400 group-hover:text-gray-200 transition-colors';
+                        quickText.textContent = '显示在快速模板中';
+
+                        quickRow.appendChild(quickBox);
+                        quickRow.appendChild(quickText);
+                        // ⚠️ 必须 stopPropagation：下面卡片的点击是「应用模板并关闭弹窗」，
+                        //    而那条守卫只挡 button，挡不住 input/label
+                        quickBox.addEventListener('click', (e) => e.stopPropagation());
+                        quickBox.addEventListener('change', () => {
+                            const target = this.templates[template.id];
+                            if (!target) return;
+                            target.inQuickTemplates = quickBox.checked;
+                            this.saveCustomTemplates();
+                            this.renderTemplateCards();
+                            // 重绘卡片列表以更新压暗状态；#templatesList 里只有模板卡片，
+                            // 不会碰到上面表单里正在填的内容
+                            this.renderTemplatesList();
+                        });
+                        templateDiv.appendChild(quickRow);
 
                         // 点击模板应用
                         templateDiv.style.cursor = 'pointer';
                         templateDiv.addEventListener('click', (e) => {
-                            // 如果点击的是删除按钮，不应用模板
-                            if (e.target.closest('button')) return;
+                            // 点击按钮 / 勾选行都不应用模板（只挡 button 会让点勾选框时误应用并关弹窗）
+                            if (e.target.closest('button, label, input')) return;
                             this.applyTemplate(template.id);
                             this.closeTemplateManager();
                         });
@@ -1161,6 +1620,14 @@
             addTemplate(e) {
                 e.preventDefault();
 
+                // 编辑时用于保留表单里没有的字段（见下面的 inQuickTemplates）
+                const existingTemplate = this.editingTemplateId ? this.templates[this.editingTemplateId] : null;
+
+                // 位置编号：勾选「自动匹配」时手动框已被禁用并清空，此时一律存 ''
+                // （不从输入框读，杜绝禁用态的残留值漏进模板）
+                const autoAssignLocation = document.getElementById('templateAutoAssignLocation').checked;
+                const locationInput = document.getElementById('templateLocation');
+
                 const template = {
                     name: document.getElementById('templateName').value,
                     category: document.getElementById('templateCategory').value,
@@ -1171,11 +1638,14 @@
                     value: addComponentManager.collectTemplateParams(),
                     stock: parseInt(document.getElementById('templateStock').value) || 0,
                     threshold: parseInt(document.getElementById('templateThreshold').value) || 0,
-                    location: '',
+                    location: autoAssignLocation ? '' : (locationInput ? locationInput.value.trim() : ''), // 手动位置编号（自动匹配时为空串）
                     notes: document.getElementById('templateNotes').value,
                     image: document.getElementById('templateImage').value || '',
                     displayText: document.getElementById('templateDisplayText').value, // 自定义显示文字
-                    autoAssignLocation: document.getElementById('templateAutoAssignLocation').checked // 自动匹配位置编号
+                    autoAssignLocation: autoAssignLocation, // 自动匹配位置编号（套用时按类别顺延）
+                    // 「显示在快速模板中」的开关只在管理弹窗的卡片上切换，表单里没有这个控件 ——
+                    // 模板对象是每次提交时整体重建的，不显式沿用原值的话，编辑一次就会被重置回 true
+                    inQuickTemplates: existingTemplate ? existingTemplate.inQuickTemplates !== false : true
                 };
 
                 if (this.editingTemplateId) {
@@ -1198,6 +1668,9 @@
                 // 重新渲染模板列表
                 this.renderTemplatesList();
                 this.renderTemplateCards();
+
+                // 展开快速模板区，确保用户能看到刚添加/更新的模板
+                this.setQuickTemplatesCollapsed(false);
             }
 
             // 编辑模板
@@ -1264,6 +1737,12 @@
                 document.getElementById('templateImage').value = template.image || '';
                 document.getElementById('templateDisplayText').value = template.displayText || '';
                 document.getElementById('templateAutoAssignLocation').checked = !!template.autoAssignLocation;
+                document.getElementById('templateLocation').value = template.location || '';
+
+                // ⚠️ 同步必须是**最后一步**：sync 读复选框决定是否清空位置编号框，若与上面的字段填充
+                //    写在一起（或提前调用），编辑「自动模板 → 手动位置模板」时会拿上一个模板的勾选态
+                //    把刚写进去的 location 清空，表现为「编辑时位置编号加载不出来」
+                this.syncTemplateLocationControls();
 
                 // 更新UI
                 const formTitle = document.getElementById('templateFormTitle');
@@ -1284,10 +1763,17 @@
             // 取消编辑模板
             cancelEditTemplate() {
                 // 重置编辑状态
+                // ⚠️ 必须在 reset()/sync 之前：sync 里「回填正在编辑模板的位置编号」那个分支
+                //    正是靠这一行失效，否则刚取消的表单会被回填出一个用户没填过的编号
                 this.editingTemplateId = null;
 
                 // 重置表单
                 document.getElementById('addTemplateForm').reset();
+
+                // ⚠️ form.reset() 还原 value/defaultValue，但**不重置 disabled 属性** ——
+                //    不显式同步一次的话，「勾选自动匹配 → 添加/取消」之后，下一次新建模板的
+                //    位置编号框仍是禁用态，与已重置的复选框状态矛盾
+                this.syncTemplateLocationControls();
 
                 // 恢复UI
                 const formTitle = document.getElementById('templateFormTitle');
@@ -1300,6 +1786,30 @@
 
                 document.getElementById('templateSubmitBtn').textContent = '添加模板';
                 document.getElementById('cancelEditTemplate').classList.add('hidden');
+            }
+
+            // 「位置编号」与「自动匹配位置编号」互斥：勾选自动时手动框禁用并清空。
+            // ⚠️ 故意**不做内存暂存**（this._templateLocationBackup 之类）：form.reset() 既不清实例字段、
+            //    也不改 disabled，暂存值会在 addTemplate()/cancelEditTemplate() 之后回灌进下一张新表单，
+            //    把上一张模板的编号显示成新模板的草稿（且会被下一次提交静默存下来）。
+            //    回填源只认「正在编辑的那个模板」，而 cancelEditTemplate() 在 reset() 之前就把
+            //    editingTemplateId 置 null ⇒ 所有重置路径上这个分支天然失效，不存在脏状态。
+            //    代价：新建模式下勾上再取消，草稿不会回来（就是用户要的「清空」语义）。
+            syncTemplateLocationControls() {
+                const autoBox = document.getElementById('templateAutoAssignLocation');
+                const locationInput = document.getElementById('templateLocation');
+                if (!autoBox || !locationInput) return;
+
+                const auto = autoBox.checked;
+                locationInput.disabled = auto;
+
+                if (auto) {
+                    locationInput.value = '';
+                } else if (locationInput.value === '' && this.editingTemplateId) {
+                    // 只回填「正在编辑的模板」自己保存过的编号（新建模式下 editingTemplateId 为 null）
+                    const editing = this.templates[this.editingTemplateId];
+                    if (editing && editing.location) locationInput.value = editing.location;
+                }
             }
 
             // 自动分配元器件位置编号（主表单）
@@ -1387,9 +1897,8 @@
                     console.error('[自动分配] 读取元器件数据失败:', error);
                 }
 
-                // 找到最小的可用编号（从1开始，跳过所有已使用的编号）
-                // 例如：如果已使用 1-36，则分配 37
-                // 如果已使用 1-5 和 10-15，则分配 6（最小的可用编号）
+                // 按该类别已占用的号段找最小的可用编号（顺延）
+                // 例如：已使用 1-36 → 37；已使用 1-5 和 10-15 → 6
                 let minAvailable = 1;
                 while (usedNumbers.has(minAvailable)) {
                     minAvailable++;
@@ -1422,26 +1931,58 @@
                 }
             }
 
-            // 渲染模板卡片（更新页面上的快速模板区域）
-            renderTemplateCards() {
-                const noTemplatesHint = document.getElementById('noTemplatesHint');
-                const customSection = document.getElementById('customTemplatesSection');
-                const customList = document.getElementById('customTemplatesList');
-                if (!customSection || !customList || !noTemplatesHint) return;
+            // 将模板参数 JSON 字符串格式化为可读文本，如 "100μF | 25V"
+            formatTemplateValue(raw) {
+                if (!raw) return '';
+                let parsed = null;
+                try {
+                    parsed = JSON.parse(raw);
+                } catch (e) {
+                    return String(raw); // 旧格式纯文本，原样显示
+                }
+                if (!parsed || typeof parsed !== 'object') return String(raw);
+                const parts = [];
+                const pushParam = (p) => {
+                    if (!p || typeof p !== 'object') return;
+                    const v = (p.value === undefined || p.value === null) ? '' : String(p.value).trim();
+                    if (!v) return;
+                    parts.push(v + (p.unit || ''));
+                };
+                if (Array.isArray(parsed)) {
+                    parsed.forEach(pushParam);
+                } else {
+                    Object.keys(parsed).forEach(k => pushParam(parsed[k]));
+                }
+                return parts.length ? parts.join(' | ') : '';
+            }
 
-                // 获取所有自定义模板
+            // 渲染快速模板列表（预览卡片内的折叠区）
+            renderTemplateCards() {
+                const quickList = document.getElementById('quickTemplatesList');
+                const quickEmpty = document.getElementById('quickTemplatesEmpty');
+                const quickCount = document.getElementById('quickTemplatesCount');
+                if (!quickList || !quickEmpty) return;
+
+                // 获取要显示在快速模板里的自定义模板：
+                // 只收「显示在快速模板中」被勾选的（inQuickTemplates 缺省视为 true，兼容旧数据）
                 const customTemplates = [];
+                let hiddenCount = 0;
                 Object.keys(this.templates).forEach(key => {
-                    if (key.startsWith('custom-')) {
-                        customTemplates.push({ id: key, ...this.templates[key] });
+                    if (!key.startsWith('custom-')) return;
+                    if (this.templates[key].inQuickTemplates === false) {
+                        hiddenCount++;
+                        return;
                     }
+                    customTemplates.push({ id: key, ...this.templates[key] });
                 });
 
+                if (quickCount) quickCount.textContent = `(${customTemplates.length})`;
+
                 if (customTemplates.length > 0) {
-                    // 有自定义模板，隐藏提示信息，显示自定义模板列表
-                    noTemplatesHint.classList.add('hidden');
-                    customSection.classList.remove('hidden');
-                    customList.innerHTML = '';
+                    // 有自定义模板，显示列表、隐藏空状态
+                    quickEmpty.classList.add('hidden');
+                    quickList.classList.remove('hidden');
+                    quickList.innerHTML = '';
 
                     // 按分类分组
                     const categoryGroups = {};
@@ -1483,30 +2024,23 @@
 
                     // 渲染每个分类
                     Object.keys(categoryGroups).sort().forEach(category => {
-                        // 创建分类标题
+                        // 分组容器：**不再渲染分类标题** —— 分类改由每行的角标承担，
+                        // 这里保留分组只为「同类相邻 + 组间留白」，故自身不带外边距，
+                        // 组间间距交给 #quickTemplatesList 的 space-y-2（组内是 space-y-0.5）
                         const groupDiv = document.createElement('div');
-                        groupDiv.className = 'mb-5';
+                        groupDiv.className = '';
 
-                        const categoryTitle = document.createElement('div');
-                        categoryTitle.className = `flex items-center mb-3 px-1`;
-                        const colorClass = categoryColors[category]?.text || categoryColors.other.text;
-                        categoryTitle.innerHTML = `
-                            <div class="w-1 h-4 rounded-full ${colorClass.replace('text', 'bg')} mr-2"></div>
-                            <h3 class="text-sm font-semibold ${colorClass}">${categoryNames[category] || category}</h3>
-                            <span class="text-xs text-gray-500 ml-2">(${categoryGroups[category].length})</span>
-                        `;
-                        groupDiv.appendChild(categoryTitle);
-
-                        // 创建该分类的模板网格
+                        // 创建该分类的模板列表（紧凑列表行）
                         const templatesGrid = document.createElement('div');
-                        templatesGrid.className = 'grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3';
+                        templatesGrid.className = 'space-y-0.5';
 
                         // 渲染该分类的模板
                         categoryGroups[category].forEach(template => {
-                            const card = document.createElement('div');
+                            const row = document.createElement('div');
                             const colors = categoryColors[template.category] || categoryColors.other;
-                            card.className = `template-card p-4 border ${colors.border} rounded-lg relative group`;
-                            card.dataset.template = template.id;
+                            const barColor = (colors.text || categoryColors.other.text).replace('text', 'bg');
+                            row.className = 'quick-template-item px-1.5 py-1 flex items-center gap-1.5 cursor-pointer';
+                            row.dataset.template = template.id;
 
                             // 生成卡片显示内容 - 优先使用自定义显示文字
                             let displayTitle = '';
@@ -1520,21 +2054,21 @@
                                 if (template.name || template.model || template.value) {
                                     const metaParts = [];
                                     if (template.model) metaParts.push(template.model);
-                                    if (template.value && template.value !== template.displayText) metaParts.push(template.value);
+                                    if (template.value && template.value !== template.displayText) metaParts.push(this.formatTemplateValue(template.value));
                                     displaySubtitle = metaParts.join(' | ');
                                 }
                             } else {
                                 // 没有自定义显示文字，使用自动生成逻辑
-                                displayTitle = template.name || template.model || template.value || '未命名模板';
+                                displayTitle = template.name || template.model || this.formatTemplateValue(template.value) || '未命名模板';
                                 
                                 if (!template.name && template.model) {
                                     displayTitle = template.model;
-                                    displaySubtitle = template.value || '';
+                                    displaySubtitle = this.formatTemplateValue(template.value);
                                 } else if (template.name && template.model && template.value) {
-                                    displaySubtitle = template.value;
+                                    displaySubtitle = this.formatTemplateValue(template.value);
                                     displayMeta = template.model + (template.brand ? ' | ' + template.brand : '');
                                 } else if (template.value) {
-                                    displaySubtitle = template.value;
+                                    displaySubtitle = this.formatTemplateValue(template.value);
                                     displayMeta = template.model || '';
                                 } else if (template.model) {
                                     displaySubtitle = template.model;
@@ -1542,38 +2076,65 @@
                                 }
                             }
 
-                            // 库存和预警信息
-                            const stockInfo = template.stock !== undefined && template.stock !== null 
-                                ? `<div class="flex items-center text-xs mt-2 ${template.stock < (template.threshold || 0) ? 'text-red-400' : 'text-gray-400'}">
-                                    <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            // 库存与预警：紧凑列表里压成行尾的小角标（图标 + 数字），不占独立一行
+                            const isLowStock = template.stock < (template.threshold || 0);
+                            const stockBadge = template.stock !== undefined && template.stock !== null
+                                ? `<span class="flex items-center gap-0.5 shrink-0 text-[10px] tabular-nums ${isLowStock ? 'text-red-400' : 'text-gray-500'}" title="${isLowStock ? '库存不足（低于预警阈值）' : '库存'}">
+                                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path>
                                     </svg>
                                     ${template.stock}
-                                </div>` 
+                                </span>`
                                 : '';
 
-                            card.innerHTML = `
-                                <div class="flex flex-col h-full">
-                                    <div class="flex-1">
-                                        <div class="text-sm font-semibold text-white mb-1 truncate">${displayTitle}</div>
-                                        ${displaySubtitle ? `<div class="text-xs text-gray-400 truncate">${displaySubtitle}</div>` : ''}
-                                        ${displayMeta ? `<div class="text-xs text-gray-500 truncate mt-1">${displayMeta}</div>` : ''}
+                            // 明细行：型号/参数/品牌合并为一行（用 · 分隔），保证每条最多两行
+                            const detailLine = [displaySubtitle, displayMeta].filter(Boolean).join(' · ');
+
+                            // 分类角标：列表虽然按分类分组，但分组标题会随内部滚动滚出视野，
+                            // 故每条自带一个分类标签（配色沿用该分类的 categoryColors）
+                            const categoryLabel = categoryNames[template.category] || template.category || '其他';
+
+                            // 位置信息一并进 tooltip：**只加 title，不加可见行** ——
+                            // 34.3px 行高 / 最多两行文案是 v20260427ap 的既定几何，可见文案多一段
+                            // 会和型号/参数抢宽度、破坏既有的截断行为
+                            const locationHint = template.location
+                                ? `位置: ${template.location}`
+                                : (template.autoAssignLocation ? '位置: 自动（按类别顺延）' : '');
+
+                            // 截断掉的完整文本走原生 tooltip（DOM 属性赋值，无需转义）
+                            row.title = [displayTitle, categoryLabel, detailLine, locationHint].filter(Boolean).join(' · ');
+
+                            row.innerHTML = `
+                                <span class="w-0.5 h-3.5 rounded-full ${barColor} shrink-0"></span>
+                                <div class="flex-1 min-w-0">
+                                    <div class="flex items-center gap-1 leading-tight">
+                                        <span class="text-[11px] font-medium text-white truncate min-w-0">${this.escapeHtml(displayTitle)}</span>
+                                        <span class="px-1 py-px rounded text-[10px] leading-none shrink-0 ${colors.bg} ${colors.text}" title="分类：${this.escapeAttr(categoryLabel)}">${this.escapeHtml(categoryLabel)}</span>
                                     </div>
-                                    ${stockInfo}
+                                    ${detailLine ? `<div class="text-[10px] text-gray-500 truncate leading-tight">${this.escapeHtml(detailLine)}</div>` : ''}
                                 </div>
-                                <div class="absolute inset-0 border-2 border-transparent rounded-lg group-hover:border-white/5 transition-colors pointer-events-none"></div>
+                                ${stockBadge}
                             `;
-                            card.addEventListener('click', () => this.applyTemplate(template.id));
-                            templatesGrid.appendChild(card);
+                            row.addEventListener('click', () => this.applyTemplate(template.id));
+                            templatesGrid.appendChild(row);
                         });
 
                         groupDiv.appendChild(templatesGrid);
-                        customList.appendChild(groupDiv);
+                        quickList.appendChild(groupDiv);
                     });
                 } else {
-                    // 没有自定义模板，显示提示信息，隐藏自定义模板列表
-                    noTemplatesHint.classList.remove('hidden');
-                    customSection.classList.add('hidden');
+                    // 没有要显示的模板，显示空状态，隐藏列表容器
+                    quickList.innerHTML = '';
+                    quickList.classList.add('hidden');
+                    quickEmpty.classList.remove('hidden');
+
+                    // 有模板但全没勾选时，「点击管理创建模板」是误导，改成说明真实原因
+                    const hint = document.getElementById('quickTemplatesEmptyHint');
+                    if (hint) {
+                        hint.textContent = hiddenCount > 0
+                            ? `有 ${hiddenCount} 个模板未勾选「显示在快速模板中」`
+                            : '点击「管理」创建模板';
+                    }
                 }
             }
             
@@ -1596,6 +2157,10 @@
                         }
                         
                         // 填充其他字段
+                        // ⚠️ 这里靠 'component' + 首字母大写(key) 的命名约定做映射 —— 模板的手动位置编号
+                        //    就是靠它（location → #componentLocation）写进主表单的。将来若重命名
+                        //    #componentLocation，这条路径会**静默失效**（不报错、只是不填）。
+                        //    不存在的 id（displayText / autoAssignLocation / inQuickTemplates）由 if (element) 兜住
                         Object.keys(template).forEach(key => {
                             if (key === 'category' || key === 'subCategory' || key === 'value') return;
                             const element = document.getElementById('component' + key.charAt(0).toUpperCase() + key.slice(1));
@@ -1657,7 +2222,7 @@
                                 easing: 'easeOutQuart'
                             });
 
-                            // 如果模板启用了自动匹配位置编号，自动分配
+                            // 如果模板启用了自动匹配位置编号，自动分配（按类别顺延）
                             if (template.autoAssignLocation) {
                                 setTimeout(() => this.autoAssignComponentLocation(), 100);
                             }
@@ -2097,16 +2662,20 @@
             }
             
             getDefaultImage(category) {
+                // 必须与 main.js 的 ComponentManager.getDefaultImage 保持一致，
+                // 否则预览显示的默认图与保存后在主页卡片上看到的不同
                 const defaultImages = {
                     resistor: 'resources/images/resistors/resistor-collection.png',
                     capacitor: 'resources/images/capacitors/capacitor-collection.png',
                     inductor: 'https://kimi-web-img.moonshot.cn/img/upload.wikimedia.org/a2f2e16f8969ba3d2db5fb18bd86a57a05f18f6e.jpg',
                     transistor: 'https://kimi-web-img.moonshot.cn/img/www.buerklin.com/9318c346e9c8d3d4e9bc8df611e2bab6cae269f8.jpg',
+                    mosfet: 'https://kimi-web-img.moonshot.cn/img/soldered.com/f1799c7b6f80ddb38cae3633c03f80cfc83de248.jpg',
                     diode: 'https://kimi-web-img.moonshot.cn/img/www.build-electronic-circuits.com/659b68c0c152c997f401ca30d570b2c98614aa04.jpg',
-                    mosfet: 'https://kimi-web-img.moonshot.cn/img/www.build-electronic-circuits.com/659b68c0c152c997f401ca30d570b2c98614aa04.jpg',
                     led: 'https://kimi-web-img.moonshot.cn/img/www.buerklin.com/9318c346e9c8d3d4e9bc8df611e2bab6cae269f8.jpg',
-                    crystal: 'resources/images/hero-circuit-board.png',
-                    ic: 'resources/images/ics/ic-collection.png'
+                    ic: 'resources/images/ics/ic-collection.png',
+                    switch: 'https://kimi-web-img.moonshot.cn/img/www.build-electronic-circuits.com/8f8a7b8c9d0e1f2a3b4c5d6e7f8a9b0c.jpg',
+                    crystal: 'https://kimi-web-img.moonshot.cn/img/www.build-electronic-circuits.com/1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d.jpg',
+                    other: 'resources/images/hero-circuit-board.png'
                 };
                 return defaultImages[category] || 'resources/images/hero-circuit-board.png';
             }
@@ -2297,12 +2866,23 @@
                                 <input type="url" id="templateImage" class="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:border-green-400 focus:outline-none" placeholder="https://example.com/image.jpg">
                                 <p class="text-xs text-gray-500 mt-1">可选：输入图片的在线链接，留空则使用默认图片</p>
                             </div>
+                            <!-- 位置编号：手动填写 与 自动匹配 互斥
+                                 （勾选「自动匹配位置编号」时本框禁用并清空，见 syncTemplateLocationControls）
+                                 ⚠️ 不能加 required：required 的禁用控件会被约束校验跳过，
+                                    而重新启用后若为空又会卡住提交 -->
+                            <div class="mt-4">
+                                <label class="block text-sm font-medium text-gray-300 mb-2">位置编号</label>
+                                <input type="text" id="templateLocation"
+                                       class="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:border-green-400 focus:outline-none disabled:opacity-40 disabled:cursor-not-allowed"
+                                       placeholder="如：R-001">
+                                <p class="text-xs text-gray-500 mt-1">可选：应用模板时写入「存放位置」；勾选下方自动匹配时本框不可用</p>
+                            </div>
                             <div class="mt-4">
                                 <label class="flex items-center cursor-pointer group">
                                     <input type="checkbox" id="templateAutoAssignLocation" class="w-4 h-4 rounded bg-gray-700 border-gray-600 text-green-500 focus:ring-green-400 focus:ring-offset-gray-800 cursor-pointer">
                                     <span class="ml-2 text-sm font-medium text-gray-300 group-hover:text-white transition-colors">自动匹配位置编号</span>
                                 </label>
-                                <p class="text-xs text-gray-500 mt-1 ml-6">勾选后，每次使用该模板时将自动分配位置编号</p>
+                                <p class="text-xs text-gray-500 mt-1 ml-6">勾选后，每次使用该模板时按该类别自动顺延分配位置编号</p>
                             </div>
                             <div class="mt-4">
                                 <button id="templateSubmitBtn" type="submit" class="px-6 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors">

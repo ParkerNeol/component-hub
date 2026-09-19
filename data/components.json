@@ -1,26 +1,7 @@
 {
   "version": "2.0",
-  "updatedAt": "2026-08-31T07:51:53.627Z",
+  "updatedAt": "2026-09-19T02:37:53.210Z",
   "components": [
-    {
-      "id": "comp_1788162713240_ktz8vqi5s",
-      "name": "0Ω 100mW 编带",
-      "model": "0603",
-      "brand": "HKR(香港电阻)",
-      "productCode": "C22356631",
-      "encapStandard": "0603",
-      "category": "resistor",
-      "subCategory": "贴片电阻",
-      "value": "[{\"id\":\"p1\",\"value\":\"0\",\"unit\":\"ω\",\"label\":\"阻值\"},{\"id\":\"p2\",\"value\":\"100\",\"unit\":\"mw\",\"label\":\"额定功率\"}]",
-      "params": "[{\"id\":\"p1\",\"value\":\"0\",\"unit\":\"ω\",\"label\":\"阻值\"},{\"id\":\"p2\",\"value\":\"100\",\"unit\":\"mw\",\"label\":\"额定功率\"}]",
-      "stock": 100,
-      "threshold": 10,
-      "location": "R1",
-      "notes": "从 LCSC 订单导入 (SO26010941688) | 厂家型号: RCA030RLF",
-      "image": "",
-      "datasheet": "",
-      "createdAt": "2026-08-31T07:51:53.240Z"
-    },
     {
       "id": "comp_1788162713240_ll1kvxojj",
       "name": "10uF ±10% 16V 编带",
@@ -39,6 +20,25 @@
       "image": "",
       "datasheet": "",
       "createdAt": "2026-08-31T07:51:53.240Z"
+    },
+    {
+      "id": "comp_1788616893339_zn1atuqby",
+      "name": "测试USB接口",
+      "model": "TYPE-C",
+      "brand": "测试",
+      "productCode": "",
+      "category": "switch",
+      "subCategory": "轻触开关",
+      "value": "TYPEC",
+      "params": "TYPEC",
+      "stock": 12,
+      "price": 1,
+      "threshold": 1232,
+      "location": "SW-001",
+      "notes": "",
+      "datasheet": "",
+      "image": "resources/images/hero-circuit-board.png",
+      "createdAt": "2026-09-05T14:01:33.339Z"
     },
     {
       "id": "comp_1788162713240_716xeb8pg",
@@ -77,6 +77,25 @@
       "image": "",
       "datasheet": "",
       "createdAt": "2026-08-31T07:51:53.240Z"
+    },
+    {
+      "id": "comp_1788617424017_e8vtcopt2",
+      "name": "STM32F103C8T6",
+      "model": "STM32F103",
+      "brand": "",
+      "productCode": "",
+      "category": "ic",
+      "subCategory": "单片机",
+      "value": "[{\"id\":\"p1\",\"label\":\"内核框架\",\"value\":\"ARM Cortex-M3\",\"unit\":\"\"},{\"id\":\"p2\",\"label\":\"Flash\",\"value\":\"64\",\"unit\":\"KB\"},{\"id\":\"p3\",\"label\":\"SRAM\",\"value\":\"20\",\"unit\":\"KB\"},{\"id\":\"p4\",\"label\":\"最大主频\",\"value\":\"72\",\"unit\":\"MHz\"},{\"id\":\"p5\",\"label\":\"通用I/O数目\",\"value\":\"\",\"unit\":\"\"}]",
+      "params": "[{\"id\":\"p1\",\"label\":\"内核框架\",\"value\":\"ARM Cortex-M3\",\"unit\":\"\"},{\"id\":\"p2\",\"label\":\"Flash\",\"value\":\"64\",\"unit\":\"KB\"},{\"id\":\"p3\",\"label\":\"SRAM\",\"value\":\"20\",\"unit\":\"KB\"},{\"id\":\"p4\",\"label\":\"最大主频\",\"value\":\"72\",\"unit\":\"MHz\"},{\"id\":\"p5\",\"label\":\"通用I/O数目\",\"value\":\"\",\"unit\":\"\"}]",
+      "stock": 50,
+      "price": 0,
+      "threshold": 5,
+      "location": "",
+      "notes": "",
+      "datasheet": "",
+      "image": "resources/images/ics/ic-collection.png",
+      "createdAt": "2026-09-05T14:10:24.017Z"
     }
   ]
 }
