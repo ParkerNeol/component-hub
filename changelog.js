@@ -54,7 +54,7 @@
                 title: "Bug 修复",
                 color: "text-red-400",
                 items: [
-                    ""
+                    "修复预警阈值修改为0失败的问题"
                 ]
             }
         ]

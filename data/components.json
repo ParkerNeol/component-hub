@@ -1,6 +1,6 @@
 {
   "version": "2.0",
-  "updatedAt": "2026-09-19T16:39:42.355Z",
+  "updatedAt": "2026-09-19T16:51:03.235Z",
   "components": [
     {
       "id": "comp_1788162713240_ll1kvxojj",
@@ -10,16 +10,18 @@
       "productCode": "C119051",
       "encapStandard": "CASE-A-3216-16(mm)",
       "category": "capacitor",
-      "subCategory": "贴片电容",
-      "value": "[{\"id\":\"p1\",\"value\":\"10\",\"unit\":\"uf\",\"label\":\"电容值\"},{\"id\":\"p2\",\"value\":\"16\",\"unit\":\"V\",\"label\":\"耐压值\"}]",
-      "params": "[{\"id\":\"p1\",\"value\":\"10\",\"unit\":\"uf\",\"label\":\"电容值\"},{\"id\":\"p2\",\"value\":\"16\",\"unit\":\"V\",\"label\":\"耐压值\"}]",
+      "subCategory": "",
+      "value": "[{\"id\":\"p1\",\"label\":\"电容值\",\"value\":\"10\",\"unit\":\"F\"},{\"id\":\"p2\",\"label\":\"耐压值\",\"value\":\"16\",\"unit\":\"V\"}]",
+      "params": "[{\"id\":\"p1\",\"label\":\"电容值\",\"value\":\"10\",\"unit\":\"F\"},{\"id\":\"p2\",\"label\":\"耐压值\",\"value\":\"16\",\"unit\":\"V\"}]",
       "stock": 5,
       "threshold": 10,
       "location": "C1",
       "notes": "从 LCSC 订单导入 (SO26010941688) | 厂家型号: CA45-A016K106T",
       "image": "",
       "datasheet": "",
-      "createdAt": "2026-08-31T07:51:53.240Z"
+      "createdAt": "2026-08-31T07:51:53.240Z",
+      "price": 0,
+      "updatedAt": "2026-09-19T16:51:03.185Z"
     },
     {
       "id": "comp_1788616893339_zn1atuqby",

@@ -2092,7 +2092,9 @@ class ComponentManager {
                 params: this.collectParams(document.getElementById('componentCategory').value, document.getElementById('componentSubCategory').value),
                 stock: newStock,
                 price: parseFloat(document.getElementById('componentPrice').value) || 0,
-                threshold: parseInt(document.getElementById('componentThreshold').value) || oldComponent.threshold,
+                const thresholdInput = document.getElementById('componentThreshold');
+                const thresholdValue = parseInt(thresholdInput.value);
+                threshold: Number.isNaN(thresholdValue) ? oldComponent.threshold : thresholdValue,
                 location: document.getElementById('componentLocation').value,
                 notes: document.getElementById('componentNotes').value,
                 image: imageUrl || oldComponent.image,
@@ -3842,7 +3844,10 @@ class ComponentManager {
                 if (updates.productCode) comp.productCode = updates.productCode;
                 if (updates.value) comp.value = updates.value;
                 if (updates.location) comp.location = updates.location;
-                if (updates.threshold) comp.threshold = parseInt(updates.threshold);
+                if (updates.threshold !== '') {
+                    const thresholdValue = parseInt(updates.threshold);
+                    comp.threshold = Number.isNaN(thresholdValue) ? comp.threshold : thresholdValue;
+                }
                 if (updates.notes) comp.notes = updates.notes;
                 if (updates.image) comp.image = updates.image;
                 if (updates.datasheet) comp.datasheet = updates.datasheet;
