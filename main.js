@@ -2079,7 +2079,10 @@ class ComponentManager {
             const imageUrl = document.getElementById('componentImage').value.trim();
             const newStock = parseInt(document.getElementById('componentStock').value) || oldComponent.stock;
             const beforeStock = oldComponent.stock;
-            
+            // 阈值输入框可能为空；空或非数字时保留原值（允许显式改为 0）
+            const thresholdInput = document.getElementById('componentThreshold');
+            const thresholdValue = parseInt(thresholdInput.value);
+
             this.components[index] = {
                 ...this.editingComponent,
                 name: document.getElementById('componentName').value,
@@ -2092,8 +2095,6 @@ class ComponentManager {
                 params: this.collectParams(document.getElementById('componentCategory').value, document.getElementById('componentSubCategory').value),
                 stock: newStock,
                 price: parseFloat(document.getElementById('componentPrice').value) || 0,
-                const thresholdInput = document.getElementById('componentThreshold');
-                const thresholdValue = parseInt(thresholdInput.value);
                 threshold: Number.isNaN(thresholdValue) ? oldComponent.threshold : thresholdValue,
                 location: document.getElementById('componentLocation').value,
                 notes: document.getElementById('componentNotes').value,
@@ -2701,6 +2702,13 @@ class ComponentManager {
     // 保存自定义分化参数定义
     saveCustomParamDefinitions(params) {
         localStorage.setItem('customParamDefinitions', JSON.stringify(params));
+        this.clearEffectiveParamDefsCache();
+    }
+
+    // 保存子类别分化参数定义（并立即失效缓存）
+    saveSubCategoryParamDefs(defs) {
+        localStorage.setItem('subCategoryParamDefinitions', JSON.stringify(defs || {}));
+        this.clearEffectiveParamDefsCache();
     }
 
     // 获取分类颜色（用于侧边栏标签）
@@ -2799,18 +2807,27 @@ class ComponentManager {
         ]
     };
 
-    // 子类别关联的分化参数定义（仅当选中特定子类别时生效）
+    // 子类别关联的分化参数定义【内置默认】
+    // 用户在设置页的编辑结果覆盖到 localStorage.subCategoryParamDefinitions，
+    // 读取走 getSubCategoryParamDefsFor()：存过就用存的（含空数组），没存过才用这里的默认。
+    // 注意：内置 id 一律保持 p1..pN 不变 —— 模板按 paramId 作对象 key 取值且无兜底，
+    //       改 id 会让用户既有模板的参数静默丢失。新增参数一律用 s1..sN 命名空间。
+    // 本表与 add-component.html 的同名表必须保持一致。
     subCategoryParamDefinitions = {
         ic: {
             '单片机': [
-                { id: 'p1', label: '内核框架', units: [], filterable: false },
-                { id: 'p2', label: 'Flash', units: ['B', 'KB', 'MB'], defaultUnit: 'KB' },
-                { id: 'p3', label: 'SRAM', units: ['B', 'KB', 'MB'], defaultUnit: 'KB' },
-                { id: 'p4', label: '最大主频', units: ['MHz', 'GHz'], defaultUnit: 'MHz' },
-                { id: 'p5', label: '通用I/O数目', units: [], numeric: true }
+                { id: 'p1', label: '内核框架', type: 'plain', units: [], unitRates: {}, defaultUnit: '', filterable: false },
+                { id: 'p2', label: 'Flash', type: 'unit', units: ['B', 'KB', 'MB'], unitRates: { 'B': 1, 'KB': 1024, 'MB': 1048576 }, defaultUnit: 'KB' },
+                { id: 'p3', label: 'SRAM', type: 'unit', units: ['B', 'KB', 'MB'], unitRates: { 'B': 1, 'KB': 1024, 'MB': 1048576 }, defaultUnit: 'KB' },
+                { id: 'p4', label: '最大主频', type: 'unit', units: ['MHz', 'GHz'], unitRates: { 'MHz': 1000000, 'GHz': 1000000000 }, defaultUnit: 'MHz' },
+                { id: 'p5', label: '通用I/O数目', type: 'plain', units: [], unitRates: {}, defaultUnit: '', numeric: true }
             ]
         }
     };
+
+    // getEffectiveParamDefs 的缓存：checkParamFilter 会对每个元器件调用一次，
+    // 不缓存则每次都 JSON.parse 两个可能很大的 localStorage 对象
+    _effectiveDefsCache = {};
 
     // 获取格式化后的参数显示文本
     getComponentValueText(component) {
@@ -2836,50 +2853,140 @@ class ComponentManager {
         return '-';
     }
 
+    // 内置单位换算表：单位名 → 相对基准单位的倍率
+    BUILTIN_UNIT_TO_BASE = {
+        'Ω': 1, 'kΩ': 1000, 'MΩ': 1000000,
+        'F': 1, 'mF': 0.001, 'μF': 0.000001, 'nF': 0.000000001, 'pF': 0.000000000001,
+        'H': 1, 'mH': 0.001, 'μH': 0.000001,
+        'V': 1, 'mV': 0.001,
+        'A': 1, 'mA': 0.001,
+        'W': 1, 'mW': 0.001,
+        'Hz': 1, 'kHz': 1000, 'MHz': 1000000, 'GHz': 1000000000,
+        'B': 1, 'KB': 1024, 'MB': 1048576,
+        's': 1, 'ms': 0.001, 'μs': 0.000001, 'ns': 0.000000001,
+        'K': 1
+    };
+
     // 单位转换：将 value+fromUnit 转换为 toUnit 的数值
-    convertToUnit(value, fromUnit, toUnit) {
+    // rates 可选：该参数自定义的 { 单位名: 倍率 }，优先级高于内置表
+    convertToUnit(value, fromUnit, toUnit, rates) {
         // 标准化单位：u→μ, ohm→Ω, 去除空格
+        // 用户显式定义过倍率的单位原样返回，避免 u→μ 之类的前缀改写误伤自定义单位
         const normalizeUnit = (u) => {
             if (!u) return '';
-            return u.trim().replace(/^u/i, 'μ').replace(/ohm/i, 'Ω').replace(/^uf$/i, 'μF').replace(/^uh$/i, 'μH');
+            const raw = String(u).trim();
+            if (rates && Object.prototype.hasOwnProperty.call(rates, raw)) return raw;
+            return raw.replace(/^u/i, 'μ').replace(/ohm/i, 'Ω').replace(/^uf$/i, 'μF').replace(/^uh$/i, 'μH');
         };
-        fromUnit = normalizeUnit(fromUnit);
-        toUnit = normalizeUnit(toUnit);
-        const unitToBase = {
-            'Ω': 1, 'kΩ': 1000, 'MΩ': 1000000,
-            'F': 1, 'mF': 0.001, 'μF': 0.000001, 'nF': 0.000000001, 'pF': 0.000000000001,
-            'H': 1, 'mH': 0.001, 'μH': 0.000001,
-            'V': 1, 'mV': 0.001,
-            'A': 1, 'mA': 0.001,
-            'W': 1,
-            'Hz': 1, 'kHz': 1000, 'MHz': 1000000,
-            's': 1, 'ms': 0.001, 'μs': 0.000001, 'ns': 0.000000001
+        const lookup = (u) => {
+            const n = normalizeUnit(u);
+            if (rates && Object.prototype.hasOwnProperty.call(rates, n)) return rates[n];
+            if (Object.prototype.hasOwnProperty.call(this.BUILTIN_UNIT_TO_BASE, n)) return this.BUILTIN_UNIT_TO_BASE[n];
+            return 1;   // 未知单位退化为 1：两侧同为未知时等价于恒等，与旧行为一致
         };
-        const baseVal = parseFloat(value) * (unitToBase[fromUnit] || 1);
-        return baseVal / (unitToBase[toUnit] || 1);
+        const baseVal = parseFloat(value) * lookup(fromUnit);
+        return baseVal / lookup(toUnit);
     }
 
     // 获取有效的参数定义（优先检查子类别关联，再检查品类定义）
-    getEffectiveParamDefs(category, subCategory) {
-        console.log('[Defs] 查询参数定义 - category:', category, 'subCategory:', subCategory);
-        if (subCategory && this.subCategoryParamDefinitions[category] && this.subCategoryParamDefinitions[category][subCategory]) {
-            console.log('[Defs] 找到子类别关联定义:', this.subCategoryParamDefinitions[category][subCategory]);
-            return this.subCategoryParamDefinitions[category][subCategory];
+    // 读取用户配置的子类别分化参数定义（localStorage），JSON 容错
+    loadSubCategoryParamDefs() {
+        try {
+            return JSON.parse(localStorage.getItem('subCategoryParamDefinitions') || '{}');
+        } catch (e) {
+            console.warn('[Defs] 解析 subCategoryParamDefinitions 失败:', e);
+            return {};
         }
-        const fallback = this.paramDefinitions[category];
-        if (fallback) {
-            console.log('[Defs] 回退到品类定义:', fallback);
-            return fallback;
+    }
+
+    // 取某子类别的分化参数定义：用户存过就用存的（含空数组），没存过才用内置默认
+    getSubCategoryParamDefsFor(category, subCategory) {
+        if (!category || !subCategory) return null;
+        const stored = this.loadSubCategoryParamDefs();
+        if (stored[category] && Object.prototype.hasOwnProperty.call(stored[category], subCategory)) {
+            return stored[category][subCategory];
         }
-        // 自定义分化参数 fallback
-        const customParams = this.getCustomParamDefinitions();
-        const customDefs = customParams[category];
-        if (customDefs) {
-            console.log('[Defs] 找到自定义参数定义:', customDefs);
-            return customDefs;
+        const builtin = this.subCategoryParamDefinitions[category];
+        return (builtin && builtin[subCategory]) ? builtin[subCategory] : null;
+    }
+
+    // 参数控件的类型：下拉 > 有单位 > 纯文本。三态互斥，由 settings.html 的 sanitizeSubParamDef
+    // 归一化保证（select 的 units 恒为空、非 select 不带 options）。
+    // 显式 type 优先；type 缺失或损坏时按形状兜底 —— 这样「type 丢失也不会渲染错」这条既有不变量
+    // 对 select 同样成立（否则 type 丢掉的 select 会退化成文本框，用户敲进去的自由值永远对不上选项）。
+    // 本方法与 add-component.html / settings.html 的同名方法必须保持一致。
+    getParamControlType(def) {
+        if (!def) return 'plain';
+        if (def.type === 'select') return 'select';
+        if (def.type === 'unit' || def.type === 'plain') {
+            return (def.units && def.units.length > 0) ? 'unit' : 'plain';
         }
-        console.log('[Defs] 无参数定义');
-        return null;
+        if (Array.isArray(def.options) && def.options.length > 0) return 'select';
+        if (def.units && def.units.length > 0) return 'unit';
+        return 'plain';
+    }
+
+    // 保证合并后的 def.id 在本列表内唯一；后出现的重名 def 改名为下一个空闲 s 号
+    dedupeParamDefIds(defs) {
+        const seen = new Set();
+        let counter = 0;
+        return defs.map(def => {
+            if (!seen.has(def.id)) { seen.add(def.id); return def; }
+            let id;
+            do { id = 's' + (++counter); } while (seen.has(id));
+            console.warn('[Defs] id 冲突，已重命名:', def.id, '->', id);
+            seen.add(id);
+            return Object.assign({}, def, { id });
+        });
+    }
+
+    // 获取有效的参数定义：品类级 + 子类别级【叠加】（子类别参数追加在品类参数之后）
+    // 注意顺序不可变：元器件 params 数组按下标对齐，追加在尾部才能让旧数据的前 N 项仍对得上
+    getEffectiveParamDefs(category, subCategory, opts) {
+        if (!category) return null;
+        const useCache = !(opts && opts.noCache);
+        const cacheKey = category + '\u0000' + (subCategory || '');
+        if (useCache && this._effectiveDefsCache && this._effectiveDefsCache[cacheKey] !== undefined) {
+            return this._effectiveDefsCache[cacheKey];
+        }
+
+        const merged = [];
+        const push = (arr) => {
+            if (Array.isArray(arr)) arr.forEach(d => { if (d && d.id && d.label != null) merged.push(d); });
+        };
+
+        // 品类级：保持原有的「内置优先、自定义兜底」优先级（这层不是叠加语义）
+        const custom = this.getCustomParamDefinitions();
+        push(this.paramDefinitions[category] || custom[category]);
+
+        // 子类别级：叠加在后面
+        push(this.getSubCategoryParamDefsFor(category, subCategory));
+
+        const result = merged.length ? this.dedupeParamDefIds(merged) : null;
+        if (useCache && this._effectiveDefsCache) this._effectiveDefsCache[cacheKey] = result;
+        return result;
+    }
+
+    // 清空有效定义缓存（参数定义写入后必须调用）
+    clearEffectiveParamDefsCache() {
+        this._effectiveDefsCache = {};
+    }
+
+    // 批量编辑用的参数定义：刻意【只用品类级】——批量操作会跨子类别，叠加后语义不明。
+    // 品类级为空时回退到该品类第一个子类别的定义（保持既有行为）
+    getBatchEditParamDefs(category) {
+        const defs = this.getEffectiveParamDefs(category, '');
+        if (defs && defs.length > 0) return defs;
+
+        const stored = this.loadSubCategoryParamDefs()[category];
+        const builtin = this.subCategoryParamDefinitions[category];
+        const merged = {};
+        if (builtin) Object.keys(builtin).forEach(k => { merged[k] = builtin[k]; });
+        if (stored) Object.keys(stored).forEach(k => { merged[k] = stored[k]; });
+
+        const firstKey = Object.keys(merged)[0];
+        const sub = firstKey ? merged[firstKey] : null;
+        return (sub && sub.length) ? this.dedupeParamDefIds(sub) : null;
     }
 
     // 更新分化参数筛选字段（根据当前选中的品类）
@@ -2892,16 +2999,21 @@ class ComponentManager {
         // 切换品类时重置筛选状态
         this.paramFilterActive = false;
 
-        console.log('[Filter] currentCategory:', this.currentCategory, 'currentSubCategory:', this.currentSubCategory);
         const defs = this.getEffectiveParamDefs(this.currentCategory, this.currentSubCategory);
-        console.log('[Filter] 获取到 defs:', defs);
         if (!defs || defs.length === 0) {
-            console.log('[Filter] 无定义，隐藏参数筛选区');
+            // 无定义时也要清掉遗留筛选，否则幽灵条件会继续过滤列表
+            this.paramFilters = {};
             section.classList.add('hidden');
             return;
         }
 
-        console.log('[Filter] 显示参数筛选区，定义数:', defs.length);
+        // 按当前 defs 剪枝：切子类别后旧 id 的筛选值必须丢弃，
+        // 否则 checkParamFilter 会拿一个不存在的条件去过滤（子类别级 s* id 跨子类别不同义，尤其明显）
+        const validIds = new Set(defs.map(d => d.id));
+        Object.keys(this.paramFilters).forEach(id => {
+            if (!validIds.has(id)) delete this.paramFilters[id];
+        });
+
         section.classList.remove('hidden');
         container.innerHTML = defs.map(def => {
             // 切换品类时重置该品类的筛选值，不保留上一品类的旧值
@@ -2912,6 +3024,18 @@ class ComponentManager {
             if (def.filterable === false) return '';
             const current = this.paramFilters[def.id] || {};
             const hasUnits = def.units && def.units.length > 0;
+            // 下拉型：按选项等值筛选（范围对枚举无意义），首项「全部」即不筛
+            if (this.getParamControlType(def) === 'select') {
+                return `
+                <div class="bg-gray-800/50 rounded-lg p-3">
+                    <label class="text-xs text-gray-300 mb-2 block">${this.escapeHtml(def.label)}</label>
+                    <select class="param-filter-value w-full px-2 py-1 text-xs bg-gray-700 border border-gray-600 rounded text-white focus:border-blue-400 focus:outline-none" data-param-id="${this.escapeAttr(def.id)}">
+                        <option value="">全部</option>
+                        ${(Array.isArray(def.options) ? def.options : []).map(o => `<option value="${this.escapeAttr(o)}">${this.escapeHtml(o)}</option>`).join('')}
+                    </select>
+                </div>
+            `;
+            }
             return `
                 <div class="bg-gray-800/50 rounded-lg p-3">
                     <label class="text-xs text-gray-300 mb-2 block">${def.label}</label>
@@ -2935,7 +3059,7 @@ class ComponentManager {
 
         // 绑定事件
         const self = this;
-        container.querySelectorAll('.param-filter-min, .param-filter-max, .param-filter-unit').forEach(el => {
+        container.querySelectorAll('.param-filter-min, .param-filter-max, .param-filter-unit, .param-filter-value').forEach(el => {
             el.addEventListener('input', function() {
                 self.collectParamFilters();
                 self.filterAndRender();
@@ -2946,23 +3070,26 @@ class ComponentManager {
             });
         });
 
-        // 显示清除按钮（如果有筛选条件）
-        const hasFilter = Object.values(this.paramFilters).some(f => f.min || f.max);
+        // 显示清除按钮（如果有筛选条件）。f.value 是下拉型的条件，漏掉它会出现
+        // 「选好了选项但清除按钮不出现」，用户没法一键还原
+        const hasFilter = Object.values(this.paramFilters).some(f => f.min || f.max || f.value);
         clearBtn.classList.toggle('hidden', !hasFilter);
     }
 
     // 收集参数筛选条件
     collectParamFilters() {
         this.paramFilters = {};
-        document.querySelectorAll('.param-filter-min, .param-filter-max, .param-filter-unit').forEach(el => {
+        document.querySelectorAll('.param-filter-min, .param-filter-max, .param-filter-unit, .param-filter-value').forEach(el => {
             const id = el.dataset.paramId;
             if (!this.paramFilters[id]) this.paramFilters[id] = {};
             if (el.classList.contains('param-filter-min')) this.paramFilters[id].min = el.value;
             if (el.classList.contains('param-filter-max')) this.paramFilters[id].max = el.value;
             if (el.classList.contains('param-filter-unit')) this.paramFilters[id].unit = el.value;
+            if (el.classList.contains('param-filter-value')) this.paramFilters[id].value = el.value;
             this.paramFilters[id]._fromThisCategory = true;
         });
-        this.paramFilterActive = Object.values(this.paramFilters).some(f => f.min || f.max);
+        // 同样必须带上 f.value：只认 min/max 的话，选项筛选会「看着生效其实没启用」
+        this.paramFilterActive = Object.values(this.paramFilters).some(f => f.min || f.max || f.value);
     }
 
     // 检查元器件是否通过参数筛选
@@ -2991,7 +3118,7 @@ class ComponentManager {
                     const filter = this.paramFilters[def.id];
                     if (filter && (filter.min || filter.max)) {
                         const filterUnit = filter.unit || def.defaultUnit;
-                        const compValue = this.convertToUnit(oldVal, oldUnit, filterUnit);
+                        const compValue = this.convertToUnit(oldVal, oldUnit, filterUnit, def.unitRates);
                         if (filter.min && compValue < parseFloat(filter.min)) return false;
                         if (filter.max && compValue > parseFloat(filter.max)) return false;
                     }
@@ -3005,7 +3132,20 @@ class ComponentManager {
         // 对每个定义的参数字段，检查是否有筛选条件
         for (const def of defs) {
             const filter = this.paramFilters[def.id];
-            if (!filter || (!filter.min && !filter.max)) continue;
+            if (!filter) continue;
+
+            // 下拉型：按选项等值筛选。必须放在下面那句 min/max 的 continue 之前 ——
+            // 下拉的条件只有 {value}，先过 min/max 那关会被当成「没设筛选」静默跳过
+            if (this.getParamControlType(def) === 'select') {
+                if (!filter.value) continue;
+                // 这里用自己的常量名，不能用下面那个 param —— 它是同一个块里的 const，
+                // 提前引用会直接 TDZ 报错而不是拿到 undefined
+                const sel = params.find(p => p.id === def.id) || params.find(p => p.label === def.label) || params[defs.indexOf(def)];
+                if (!sel || sel.value !== filter.value) return false;   // 没填该参数的元器件在设了筛选时应排除
+                continue;
+            }
+
+            if (!filter.min && !filter.max) continue;
 
             // 无单位的参数（如发光颜色）不做数值筛选（除非标记了 numeric: true）
             if ((!def.units || def.units.length === 0) && !def.numeric) continue;
@@ -3020,7 +3160,7 @@ class ComponentManager {
                 compValue = parseFloat(param.value);
             } else {
                 const filterUnit = filter.unit || def.defaultUnit;
-                compValue = this.convertToUnit(param.value, param.unit, filterUnit);
+                compValue = this.convertToUnit(param.value, param.unit, filterUnit, def.unitRates);
             }
 
             if (filter.min && compValue < parseFloat(filter.min)) return false;
@@ -3035,14 +3175,8 @@ class ComponentManager {
         const container = document.getElementById(containerId);
         if (!container) return;
 
-        // 子类别关联定义优先
-        let defs = null;
-        if (subCategory && this.subCategoryParamDefinitions[category] && this.subCategoryParamDefinitions[category][subCategory]) {
-            defs = this.subCategoryParamDefinitions[category][subCategory];
-        }
-        if (!defs) {
-            defs = this.paramDefinitions[category];
-        }
+        // 品类级 + 子类别级叠加
+        const defs = this.getEffectiveParamDefs(category, subCategory);
         // 兼容处理：paramsJson 可能是字符串或对象
         let params = null;
         let plainTextValue = '';
@@ -3071,22 +3205,43 @@ class ComponentManager {
 
         let html = '<div class="space-y-3">';
         defs.forEach((def, idx) => {
-            const val = params && params[idx] ? params[idx].value : '';
-            const unit = params && params[idx] ? params[idx].unit : def.defaultUnit;
-            
+            // id 优先、索引兜底：叠加后老元器件的 params 数组短于新 defs，
+            // 且 id 可能因去重改名而对不上，两种兜底都要有
+            const p = Array.isArray(params) ? (params.find(x => x && x.id === def.id) || params[idx]) : null;
+            const val = p ? (p.value || '') : '';
+            const unit = p && p.unit ? p.unit : def.defaultUnit;
+
             html += '<div>' +
                 '<label class="block text-sm font-medium text-gray-300 mb-2">' + def.label + '</label>' +
-                '<div class="flex space-x-2">' +
-                '<input type="text" id="param-' + def.id + '" value="' + val + '" class="flex-1 px-4 py-3 text-white bg-gray-800 border border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" placeholder="输入' + def.label + '">';
-            
-            if (def.units && def.units.length > 0) {
-                html += '<select id="param-unit-' + def.id + '" class="w-24 px-3 py-3 text-white bg-gray-800 border border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">';
-                def.units.forEach(u => {
-                    html += '<option value="' + u + '"' + (u === unit ? ' selected' : '') + '>' + u + '</option>';
+                '<div class="flex space-x-2">';
+
+            if (this.getParamControlType(def) === 'select') {
+                const opts = Array.isArray(def.options) ? def.options : [];
+                // 首项固定空值占位，逼用户主动挑，避免「没选」被当成一个真实取值存下去
+                html += '<select id="param-' + def.id + '" class="flex-1 px-4 py-3 text-white bg-gray-800 border border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">' +
+                    '<option value="">请选择</option>';
+                opts.forEach(u => {
+                    // 比较用原始值、输出才转义：选项名含引号时 value="..." 会被截断
+                    html += '<option value="' + this.escapeAttr(u) + '"' + (u === val ? ' selected' : '') + '>' + this.escapeHtml(u) + '</option>';
                 });
+                // 选项被改名/删除后老元器件里仍留着旧值：补一个失效项显式选中它，
+                // 否则控件停在「请选择」，用户一保存就把原值洗掉
+                if (val && opts.indexOf(val) === -1) {
+                    html += '<option value="' + this.escapeAttr(val) + '" selected>' + this.escapeHtml(val) + '（选项已失效）</option>';
+                }
                 html += '</select>';
+            } else {
+                html += '<input type="text" id="param-' + def.id + '" value="' + val + '" class="flex-1 px-4 py-3 text-white bg-gray-800 border border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" placeholder="输入' + def.label + '">';
+
+                if (def.units && def.units.length > 0) {
+                    html += '<select id="param-unit-' + def.id + '" class="w-24 px-3 py-3 text-white bg-gray-800 border border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">';
+                    def.units.forEach(u => {
+                        html += '<option value="' + u + '"' + (u === unit ? ' selected' : '') + '>' + u + '</option>';
+                    });
+                    html += '</select>';
+                }
             }
-            
+
             html += '</div></div>';
         });
         html += '</div>';
@@ -3095,13 +3250,7 @@ class ComponentManager {
 
     // 收集分化参数值
     collectParams(category, subCategory, inputId) {
-        let defs = null;
-        if (subCategory && this.subCategoryParamDefinitions[category] && this.subCategoryParamDefinitions[category][subCategory]) {
-            defs = this.subCategoryParamDefinitions[category][subCategory];
-        }
-        if (!defs) {
-            defs = this.paramDefinitions[category];
-        }
+        const defs = this.getEffectiveParamDefs(category, subCategory);
         if (!defs) {
             const id = inputId || 'componentValue';
             const val = document.getElementById(id);
@@ -3311,7 +3460,8 @@ class ComponentManager {
             const allSettings = {};
             ['systemSettings', 'subCategorySettings', 'locationPrefixConfig',
              'categoryOrder', 'lastSelectedCategory', 'sampleDataLoaded',
-             'customCategories', 'customParamDefinitions'].forEach(key => {
+             'customCategories', 'customParamDefinitions',
+             'subCategoryParamDefinitions'].forEach(key => {
                 const val = localStorage.getItem(key);
                 if (val) {
                     try { allSettings[key] = JSON.parse(val); }
@@ -3353,6 +3503,8 @@ class ComponentManager {
                     console.log('[Settings] 从服务端回填:', key);
                 }
             }
+            // 参数定义可能刚从服务端回填，缓存必须失效
+            this.clearEffectiveParamDefsCache();
         } catch (e) {
             console.log('[Settings] 服务端未运行，跳过服务端加载');
         }
@@ -3733,21 +3885,28 @@ class ComponentManager {
         const category = document.getElementById('bulkEditCategory').value;
         const container = document.getElementById('bulkEditParamFields');
         const fieldsContainer = document.getElementById('bulkEditParamFieldsContainer');
-        // 批量编辑：优先用品类定义，若没有则尝试子类别关联定义
-        let defs = this.paramDefinitions[category];
-        if (!defs || defs.length === 0) {
-            const subDefs = this.subCategoryParamDefinitions[category];
-            if (subDefs) {
-                // 取第一个子类别的定义作为批量编辑的代表
-                const firstKey = Object.keys(subDefs)[0];
-                defs = subDefs[firstKey];
-            }
-        }
-        
+        // 批量编辑：优先用品类定义，若没有则尝试子类别定义
+        let defs = this.getBatchEditParamDefs(category);
+
         if (defs && defs.length > 0) {
             container.classList.remove('hidden');
             fieldsContainer.innerHTML = defs.map(def => {
                 const hasUnits = def.units && def.units.length > 0;
+                // 下拉型要显式给「保持不变」，否则用户没动下拉也会把值刷成第一项
+                if (this.getParamControlType(def) === 'select') {
+                    return `
+                <div>
+                    <label class="block text-sm font-medium text-gray-300 mb-2">${def.label}</label>
+                    <div class="flex space-x-2">
+                        <select id="bulkEditParam-${def.id}"
+                                class="flex-1 px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:border-blue-400 focus:outline-none">
+                            <option value="">保持不变</option>
+                            ${(Array.isArray(def.options) ? def.options : []).map(o => `<option value="${this.escapeAttr(o)}">${this.escapeHtml(o)}</option>`).join('')}
+                        </select>
+                    </div>
+                </div>
+            `;
+                }
                 return `
                 <div>
                     <label class="block text-sm font-medium text-gray-300 mb-2">${def.label}</label>
@@ -3788,15 +3947,9 @@ class ComponentManager {
         // 获取分化参数修改
         const category = document.getElementById('bulkEditCategory').value;
         let paramsUpdate = null;
-        // 批量编辑：优先用品类定义，若没有则尝试子类别关联定义
-        let defs = this.paramDefinitions[category];
-        if (!defs || defs.length === 0) {
-            const subDefs = this.subCategoryParamDefinitions[category];
-            if (subDefs) {
-                const firstKey = Object.keys(subDefs)[0];
-                defs = subDefs[firstKey];
-            }
-        }
+        // 批量编辑：与 renderBulkEditParamFields 走同一个解析入口。
+        // 两侧若不一致，渲染出的字段与这里收集的字段不是同一套，用户填的值会被静默丢弃
+        let defs = this.getBatchEditParamDefs(category);
         if (defs && defs.length > 0) {
             const paramVals = [];
             let hasParamValue = false;
@@ -3805,7 +3958,11 @@ class ComponentManager {
                 const u = document.getElementById('bulkEditParam-unit-' + def.id);
                 if (v && v.value) {
                     hasParamValue = true;
-                    const unit = u && u.value !== '' ? u.value : def.defaultUnit;
+                    // 下拉型没有单位控件，显式给 ''，不靠 def.defaultUnit 兜底
+                    // （手工改过的脏数据里 select 可能残留 defaultUnit，兜底会写进一个假单位）
+                    const unit = (u && u.value !== '')
+                        ? u.value
+                        : (this.getParamControlType(def) === 'select' ? '' : def.defaultUnit);
                     paramVals.push({ id: def.id, label: def.label, value: v.value, unit: unit });
                 }
             });

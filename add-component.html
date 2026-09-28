@@ -1031,13 +1031,8 @@
                 
                 // 根据类别读取参数值（支持分化参数）
                 let value = '-';
-                let defs = null;
-                if (subCategory && this.subCategoryParamDefinitions[category] && this.subCategoryParamDefinitions[category][subCategory]) {
-                    defs = this.subCategoryParamDefinitions[category][subCategory];
-                }
-                if (!defs) {
-                    defs = this.paramDefinitions[category];
-                }
+                // 品类级 + 子类别级叠加
+                let defs = this.getEffectiveParamDefs(category, subCategory);
                 if (defs) {
                     const vals = [];
                     defs.forEach(def => {
@@ -1203,6 +1198,24 @@
             // 属性值转义：escapeHtml 不处理引号，用在 src/href/alt/title 等属性位会逃逸（main.js 的既有隐患）
             escapeAttr(str) {
                 return this.escapeHtml(str).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+            }
+
+            // 给回填元素赋值：元素可能是 <input> 也可能是下拉型的 <select>。
+            // select.value = X 只在存在 value === X 的 option 时才生效 —— 选项被改名/删除后
+            // 会静默停在第一项（「请选择」，值 ''），用户下次保存就把原值洗掉。
+            // 所以匹配不上时动态补一个 option 把旧值兜住，并标注已失效。
+            setSelectValue(el, value) {
+                if (!el) return;
+                if (el.tagName !== 'SELECT') { el.value = value; return; }
+                const v = (value === undefined || value === null) ? '' : String(value);
+                el.value = v;
+                if (v !== '' && el.value !== v) {
+                    const opt = document.createElement('option');
+                    opt.value = v;
+                    opt.textContent = v + '（选项已失效）';
+                    el.appendChild(opt);
+                    el.value = v;
+                }
             }
 
             loadTemplates() {
@@ -1543,18 +1556,8 @@
                 const subCategory = document.getElementById('templateSubCategory').value;
 
                 // 子类别关联定义优先
-                let defs = null;
-                if (subCategory && this.subCategoryParamDefinitions[category] && this.subCategoryParamDefinitions[category][subCategory]) {
-                    defs = this.subCategoryParamDefinitions[category][subCategory];
-                }
-                if (!defs) {
-                    defs = this.paramDefinitions[category];
-                }
-                // 自定义分化参数 fallback
-                if (!defs) {
-                    const customParams = JSON.parse(localStorage.getItem('customParamDefinitions') || '{}');
-                    defs = customParams[category] || null;
-                }
+                // 品类级 + 子类别级叠加
+                let defs = this.getEffectiveParamDefs(category, subCategory);
 
                 if (!defs) {
                     container.innerHTML = '<label class="block text-sm font-medium text-gray-300 mb-2">参数值</label>' +
@@ -1566,14 +1569,24 @@
                 defs.forEach(def => {
                     html += '<div class="mb-3">' +
                         '<label class="block text-sm font-medium text-gray-300 mb-2">' + def.label + '</label>' +
-                        '<div class="flex space-x-2">' +
-                        '<input type="text" id="template-param-' + def.id + '" value="" class="flex-1 px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:border-green-400 focus:outline-none" placeholder="输入' + def.label + '">';
-                    if (def.units && def.units.length > 0) {
-                        html += '<select id="template-param-unit-' + def.id + '" class="w-24 px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:border-green-400 focus:outline-none">';
-                        def.units.forEach(u => {
-                            html += '<option value="' + u + '"' + (u === def.defaultUnit ? ' selected' : '') + '>' + u + '</option>';
+                        '<div class="flex space-x-2">';
+
+                    if (this.getParamControlType(def) === 'select') {
+                        html += '<select id="template-param-' + def.id + '" class="flex-1 px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:border-green-400 focus:outline-none">' +
+                            '<option value="">请选择</option>';
+                        (Array.isArray(def.options) ? def.options : []).forEach(u => {
+                            html += '<option value="' + this.escapeAttr(u) + '">' + this.escapeHtml(u) + '</option>';
                         });
                         html += '</select>';
+                    } else {
+                        html += '<input type="text" id="template-param-' + def.id + '" value="" class="flex-1 px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:border-green-400 focus:outline-none" placeholder="输入' + def.label + '">';
+                        if (def.units && def.units.length > 0) {
+                            html += '<select id="template-param-unit-' + def.id + '" class="w-24 px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:border-green-400 focus:outline-none">';
+                            def.units.forEach(u => {
+                                html += '<option value="' + u + '"' + (u === def.defaultUnit ? ' selected' : '') + '>' + u + '</option>';
+                            });
+                            html += '</select>';
+                        }
                     }
                     html += '</div></div>';
                 });
@@ -1586,13 +1599,8 @@
                 const subCategory = document.getElementById('templateSubCategory').value;
                 
                 // 子类别关联定义优先
-                let defs = null;
-                if (subCategory && this.subCategoryParamDefinitions[category] && this.subCategoryParamDefinitions[category][subCategory]) {
-                    defs = this.subCategoryParamDefinitions[category][subCategory];
-                }
-                if (!defs) {
-                    defs = this.paramDefinitions[category];
-                }
+                // 品类级 + 子类别级叠加
+                let defs = this.getEffectiveParamDefs(category, subCategory);
 
                 if (!defs) {
                     const valueEl = document.getElementById('templateValue');
@@ -1605,7 +1613,9 @@
                     const input = document.getElementById('template-param-' + def.id);
                     const value = input ? input.value.trim() : '';
                     let unit = '';
-                    if (def.units && def.units.length > 0) {
+                    // 用控件类型判定而不是裸 units.length：脏数据（select 却带 units）会去找一个
+                    // 根本不存在的单位下拉，兜底的 def.defaultUnit 又把假单位写进模板
+                    if (this.getParamControlType(def) !== 'select' && def.units && def.units.length > 0) {
                         const unitSelect = document.getElementById('template-param-unit-' + def.id);
                         unit = unitSelect ? unitSelect.value : (def.defaultUnit || '');
                     }
@@ -1695,13 +1705,8 @@
                 // 填充参数值
                 const category = template.category || '';
                 const subCategory = template.subCategory || '';
-                let defs = null;
-                if (subCategory && this.subCategoryParamDefinitions[category] && this.subCategoryParamDefinitions[category][subCategory]) {
-                    defs = this.subCategoryParamDefinitions[category][subCategory];
-                }
-                if (!defs) {
-                    defs = this.paramDefinitions[category];
-                }
+                // 品类级 + 子类别级叠加
+                let defs = this.getEffectiveParamDefs(category, subCategory);
                 
                 if (defs && template.value) {
                     // 尝试解析JSON格式的参数
@@ -1710,7 +1715,7 @@
                         defs.forEach(def => {
                             if (params[def.id]) {
                                 const input = document.getElementById('template-param-' + def.id);
-                                if (input) input.value = params[def.id].value || '';
+                                this.setSelectValue(input, params[def.id].value || '');
                                 if (def.units && def.units.length > 0) {
                                     const unitSelect = document.getElementById('template-param-unit-' + def.id);
                                     if (unitSelect) unitSelect.value = params[def.id].unit || def.defaultUnit || '';
@@ -2180,13 +2185,8 @@
                             if (template.value) {
                                 const category = template.category || '';
                                 const subCategory = template.subCategory || '';
-                                let defs = null;
-                                if (subCategory && addComponentManager.subCategoryParamDefinitions[category] && addComponentManager.subCategoryParamDefinitions[category][subCategory]) {
-                                    defs = addComponentManager.subCategoryParamDefinitions[category][subCategory];
-                                }
-                                if (!defs) {
-                                    defs = addComponentManager.paramDefinitions[category];
-                                }
+                                // 品类级 + 子类别级叠加
+                                const defs = addComponentManager.getEffectiveParamDefs(category, subCategory);
                                 
                                 if (defs) {
                                     try {
@@ -2194,7 +2194,7 @@
                                         defs.forEach(def => {
                                             if (params[def.id]) {
                                                 const input = document.getElementById('param-' + def.id);
-                                                if (input) input.value = params[def.id].value || '';
+                                                addComponentManager.setSelectValue(input, params[def.id].value || '');
                                                 if (def.units && def.units.length > 0) {
                                                     const unitSelect = document.getElementById('param-unit-' + def.id);
                                                     if (unitSelect) unitSelect.value = params[def.id].unit || def.defaultUnit || '';
@@ -2350,18 +2350,114 @@
                 ]
             };
 
-            // 子类别关联的分化参数定义（仅当选中特定子类别时生效）
+            // 子类别关联的分化参数定义【内置默认】
+            // 用户在设置页的编辑结果覆盖到 localStorage.subCategoryParamDefinitions，
+            // 读取走 getSubCategoryParamDefsFor()：存过就用存的（含空数组），没存过才用这里的默认。
+            // 注意：内置 id 一律保持 p1..pN 不变 —— 模板按 paramId 作对象 key 取值且无兜底，
+            //       改 id 会让用户既有模板的参数静默丢失。新增参数一律用 s1..sN 命名空间。
+            // 本表与 main.js 的同名表必须保持一致。
             subCategoryParamDefinitions = {
                 ic: {
                     '单片机': [
-                        { id: "p1", label: "内核框架", units: [], filterable: false },
-                        { id: 'p2', label: 'Flash', units: ['B', 'KB', 'MB'], defaultUnit: 'KB' },
-                        { id: 'p3', label: 'SRAM', units: ['B', 'KB', 'MB'], defaultUnit: 'KB' },
-                        { id: 'p4', label: '最大主频', units: ['MHz', 'GHz'], defaultUnit: 'MHz' },
-                        { id: "p5", label: "通用I/O数目", units: [], numeric: true }
+                        { id: 'p1', label: '内核框架', type: 'plain', units: [], unitRates: {}, defaultUnit: '', filterable: false },
+                        { id: 'p2', label: 'Flash', type: 'unit', units: ['B', 'KB', 'MB'], unitRates: { 'B': 1, 'KB': 1024, 'MB': 1048576 }, defaultUnit: 'KB' },
+                        { id: 'p3', label: 'SRAM', type: 'unit', units: ['B', 'KB', 'MB'], unitRates: { 'B': 1, 'KB': 1024, 'MB': 1048576 }, defaultUnit: 'KB' },
+                        { id: 'p4', label: '最大主频', type: 'unit', units: ['MHz', 'GHz'], unitRates: { 'MHz': 1000000, 'GHz': 1000000000 }, defaultUnit: 'MHz' },
+                        { id: 'p5', label: '通用I/O数目', type: 'plain', units: [], unitRates: {}, defaultUnit: '', numeric: true }
                     ]
                 }
             };
+
+            // 获取自定义分化参数定义（与 main.js 同名方法保持一致）
+            getCustomParamDefinitions() {
+                try {
+                    return JSON.parse(localStorage.getItem('customParamDefinitions') || '{}');
+                } catch (e) {
+                    return {};
+                }
+            }
+
+            // 读取用户配置的子类别分化参数定义（localStorage），JSON 容错
+            loadSubCategoryParamDefs() {
+                try {
+                    return JSON.parse(localStorage.getItem('subCategoryParamDefinitions') || '{}');
+                } catch (e) {
+                    console.warn('[Defs] 解析 subCategoryParamDefinitions 失败:', e);
+                    return {};
+                }
+            }
+
+            // 取某子类别的分化参数定义：用户存过就用存的（含空数组），没存过才用内置默认
+            getSubCategoryParamDefsFor(category, subCategory) {
+                if (!category || !subCategory) return null;
+                const stored = this.loadSubCategoryParamDefs();
+                if (stored[category] && Object.prototype.hasOwnProperty.call(stored[category], subCategory)) {
+                    return stored[category][subCategory];
+                }
+                const builtin = this.subCategoryParamDefinitions[category];
+                return (builtin && builtin[subCategory]) ? builtin[subCategory] : null;
+            }
+
+            // 参数控件的类型：下拉 > 有单位 > 纯文本。三态互斥，由 settings.html 的
+            // sanitizeSubParamDef 归一化保证。显式 type 优先，缺失/损坏时按形状兜底。
+            // 本方法必须与 main.js、settings.html 的同名方法保持一致。
+            getParamControlType(def) {
+                if (!def) return 'plain';
+                if (def.type === 'select') return 'select';
+                if (def.type === 'unit' || def.type === 'plain') {
+                    return (def.units && def.units.length > 0) ? 'unit' : 'plain';
+                }
+                if (Array.isArray(def.options) && def.options.length > 0) return 'select';
+                if (def.units && def.units.length > 0) return 'unit';
+                return 'plain';
+            }
+
+            // 保证合并后的 def.id 在本列表内唯一；后出现的重名 def 改名为下一个空闲 s 号
+            dedupeParamDefIds(defs) {
+                const seen = new Set();
+                let counter = 0;
+                return defs.map(def => {
+                    if (!seen.has(def.id)) { seen.add(def.id); return def; }
+                    let id;
+                    do { id = 's' + (++counter); } while (seen.has(id));
+                    console.warn('[Defs] id 冲突，已重命名:', def.id, '->', id);
+                    seen.add(id);
+                    return Object.assign({}, def, { id });
+                });
+            }
+
+            // 获取有效的参数定义：品类级 + 子类别级【叠加】（子类别参数追加在品类参数之后）
+            // 注意顺序不可变：元器件 params 数组按下标对齐，追加在尾部才能让旧数据的前 N 项仍对得上
+            getEffectiveParamDefs(category, subCategory, opts) {
+                if (!category) return null;
+                const useCache = !(opts && opts.noCache);
+                const cacheKey = category + '\u0000' + (subCategory || '');
+                if (useCache && this._effectiveDefsCache && this._effectiveDefsCache[cacheKey] !== undefined) {
+                    return this._effectiveDefsCache[cacheKey];
+                }
+
+                const merged = [];
+                const push = (arr) => {
+                    if (Array.isArray(arr)) arr.forEach(d => { if (d && d.id && d.label != null) merged.push(d); });
+                };
+
+                // 品类级：保持原有的「内置优先、自定义兜底」优先级（这层不是叠加语义）
+                const custom = this.getCustomParamDefinitions();
+                push(this.paramDefinitions[category] || custom[category]);
+
+                // 子类别级：叠加在后面
+                push(this.getSubCategoryParamDefsFor(category, subCategory));
+
+                const result = merged.length ? this.dedupeParamDefIds(merged) : null;
+                if (useCache && this._effectiveDefsCache) this._effectiveDefsCache[cacheKey] = result;
+                return result;
+            }
+
+            clearEffectiveParamDefsCache() {
+                this._effectiveDefsCache = {};
+            }
+
+            _effectiveDefsCache = {};
 
             // 渲染参数输入字段
             updateParamFields() {
@@ -2381,18 +2477,8 @@
                 }
 
                 // 子类别关联定义优先
-                let defs = null;
-                if (subCategory && this.subCategoryParamDefinitions[category] && this.subCategoryParamDefinitions[category][subCategory]) {
-                    defs = this.subCategoryParamDefinitions[category][subCategory];
-                }
-                if (!defs) {
-                    defs = this.paramDefinitions[category];
-                }
-                // 自定义分化参数 fallback
-                if (!defs) {
-                    const customParams = JSON.parse(localStorage.getItem('customParamDefinitions') || '{}');
-                    defs = customParams[category] || null;
-                }
+                // 品类级 + 子类别级叠加
+                let defs = this.getEffectiveParamDefs(category, subCategory);
                 // 过滤掉可能的空元素（防止稀疏数组导致崩溃）
                 if (defs) {
                     defs = defs.filter(d => d && d.id);
@@ -2414,22 +2500,36 @@
                 defs.forEach(def => {
                     html += '<div>' +
                         '<label class="block text-sm font-medium text-gray-300 mb-2">' + def.label + '</label>' +
-                        '<div class="flex space-x-2">' +
-                        '<input type="text" id="param-' + def.id + '" value="" class="flex-1 px-4 py-3 text-white bg-gray-800 border border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" placeholder="输入' + def.label + '">';
-                    if (def.units && def.units.length > 0) {
-                        html += '<select id="param-unit-' + def.id + '" class="w-24 px-3 py-3 text-white bg-gray-800 border border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">';
-                        def.units.forEach(u => {
-                            html += '<option value="' + u + '"' + (u === def.defaultUnit ? ' selected' : '') + '>' + u + '</option>';
+                        '<div class="flex space-x-2">';
+
+                    if (this.getParamControlType(def) === 'select') {
+                        // 首项空占位：新增时一律要求主动挑选，避免「没选」被当取值存下去
+                        html += '<select id="param-' + def.id + '" class="flex-1 px-4 py-3 text-white bg-gray-800 border border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">' +
+                            '<option value="">请选择</option>';
+                        (Array.isArray(def.options) ? def.options : []).forEach(u => {
+                            // 选项值走 escapeAttr，选项名含引号时才不会截断 value="..."
+                            html += '<option value="' + this.escapeAttr(u) + '">' + this.escapeHtml(u) + '</option>';
                         });
                         html += '</select>';
+                    } else {
+                        html += '<input type="text" id="param-' + def.id + '" value="" class="flex-1 px-4 py-3 text-white bg-gray-800 border border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" placeholder="输入' + def.label + '">';
+                        if (def.units && def.units.length > 0) {
+                            html += '<select id="param-unit-' + def.id + '" class="w-24 px-3 py-3 text-white bg-gray-800 border border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">';
+                            def.units.forEach(u => {
+                                html += '<option value="' + u + '"' + (u === def.defaultUnit ? ' selected' : '') + '>' + u + '</option>';
+                            });
+                            html += '</select>';
+                        }
                     }
                     html += '</div></div>';
                 });
                 html += '</div>';
                 container.innerHTML = html;
 
-                // 给动态生成的参数字段绑定 input 事件，实时更新预览
-                container.querySelectorAll('input[id^="param-"], select[id^="param-unit-"]').forEach(el => {
+                // 给动态生成的参数字段绑定 input 事件，实时更新预览。
+                // select[id^="param-"] 必须在这里：下拉型参数的 id 是 param-<id>（与文本框同名段），
+                // 只匹配 input 的话选了下拉项实时预览不会刷新
+                container.querySelectorAll('input[id^="param-"], select[id^="param-"], select[id^="param-unit-"]').forEach(el => {
                     el.addEventListener('input', () => this.updatePreview());
                     el.addEventListener('change', () => this.updatePreview());
                 });
@@ -2441,18 +2541,8 @@
                 const subCategory = document.getElementById('componentSubCategory').value;
 
                 // 子类别关联定义优先
-                let defs = null;
-                if (subCategory && this.subCategoryParamDefinitions[category] && this.subCategoryParamDefinitions[category][subCategory]) {
-                    defs = this.subCategoryParamDefinitions[category][subCategory];
-                }
-                if (!defs) {
-                    defs = this.paramDefinitions[category];
-                }
-                // 自定义分化参数 fallback
-                if (!defs) {
-                    const customParams = JSON.parse(localStorage.getItem('customParamDefinitions') || '{}');
-                    defs = customParams[category] || null;
-                }
+                // 品类级 + 子类别级叠加
+                let defs = this.getEffectiveParamDefs(category, subCategory);
                 // 过滤掉可能的空元素（防止稀疏数组导致崩溃）
                 if (defs) {
                     defs = defs.filter(d => d && d.id);
@@ -2583,7 +2673,8 @@
                         settingsXhr.setRequestHeader('Content-Type', 'application/json');
                         var allSettings = {};
                         ['systemSettings','subCategorySettings','locationPrefixConfig',
-                         'categoryOrder','customCategories','customParamDefinitions'].forEach(function(k) {
+                         'categoryOrder','customCategories','customParamDefinitions',
+                         'subCategoryParamDefinitions'].forEach(function(k) {
                             var v = localStorage.getItem(k);
                             if (v) { try { allSettings[k] = JSON.parse(v); } catch(e) {} }
                         });

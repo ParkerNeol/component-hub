@@ -864,6 +864,8 @@
                 this.selectedBulkEditIds = new Set();
                 this.selectedExportIds = new Set();
                 this.tempSubCategoryConfig = null;  // 子类别配置暂存（点保存才写入 localStorage）
+                this.tempSubCategoryParamConfig = {};  // 子类别分化参数暂存，与名字数组【按索引对齐】
+                this.expandedParamPanel = -1;          // 当前展开的参数面板的子类别索引（手风琴，-1 为全收起）
                 this.init();
             }
             
@@ -1817,8 +1819,9 @@
                     subCategorySettings: this.getSubCategorySettings(),
                     customCategories: this.getCustomCategories(),
                     customParamDefinitions: JSON.parse(localStorage.getItem('customParamDefinitions') || '{}'),
+                    subCategoryParamDefinitions: this.loadSubCategoryParamDefs(),
                     exportDate: new Date().toISOString(),
-                    version: '1.1'
+                    version: '1.2'
                 };
 
                 const content = JSON.stringify(data, null, 2);
@@ -1883,14 +1886,16 @@
                         const data = JSON.parse(e.target.result);
 
                         // 兼容多种格式：
-                        // 1. 导出格式 v1.1: { settings, locationPrefixConfig, subCategorySettings, customCategories, customParamDefinitions }
-                        // 2. 导出格式 v1.0: { settings, locationPrefixConfig, subCategorySettings }
-                        // 3. 服务端文件格式: { systemSettings, subCategorySettings, locationPrefixConfig }
+                        // 1. 导出格式 v1.2: { settings, locationPrefixConfig, subCategorySettings, customCategories, customParamDefinitions, subCategoryParamDefinitions }
+                        // 2. 导出格式 v1.1: 同上但无 subCategoryParamDefinitions
+                        // 3. 导出格式 v1.0: { settings, locationPrefixConfig, subCategorySettings }
+                        // 4. 服务端文件格式: { systemSettings, subCategorySettings, locationPrefixConfig, ... }
                         let importedSettings = null;
                         let importedLocationPrefix = null;
                         let importedSubCategories = null;
                         let importedCustomCategories = null;
                         let importedCustomParams = null;
+                        let importedSubCategoryParams = null;
 
                         if (data.settings) {
                             importedSettings = data.settings;
@@ -1898,10 +1903,14 @@
                             importedSubCategories = data.subCategorySettings;
                             importedCustomCategories = data.customCategories;
                             importedCustomParams = data.customParamDefinitions;
+                            importedSubCategoryParams = data.subCategoryParamDefinitions;
                         } else if (data.systemSettings) {
                             importedSettings = data.systemSettings;
                             importedLocationPrefix = data.locationPrefixConfig;
                             importedSubCategories = data.subCategorySettings;
+                            importedCustomCategories = data.customCategories;
+                            importedCustomParams = data.customParamDefinitions;
+                            importedSubCategoryParams = data.subCategoryParamDefinitions;
                         } else {
                             throw new Error('无效的设置文件格式');
                         }
@@ -1929,6 +1938,13 @@
                             // 导入自定义分化参数
                             if (importedCustomParams) {
                                 localStorage.setItem('customParamDefinitions', JSON.stringify(importedCustomParams));
+                            }
+
+                            // 导入子类别分化参数。
+                            // 老备份（v1.0/v1.1）没有这个字段，此时必须【保持本地不动】——
+                            // 若用 {} 覆盖会清空用户已配好的子类别参数。
+                            if (importedSubCategoryParams) {
+                                this.saveSubCategoryParamDefs(this.sanitizeSubCategoryParamDefs(importedSubCategoryParams));
                             }
 
                             // 保存设置
@@ -2209,7 +2225,8 @@
                     const allSettings = {};
                     [
                         'systemSettings', 'subCategorySettings', 'locationPrefixConfig',
-                        'categoryOrder', 'customCategories', 'customParamDefinitions'
+                        'categoryOrder', 'customCategories', 'customParamDefinitions',
+                        'subCategoryParamDefinitions'
                     ].forEach(key => {
                         const val = localStorage.getItem(key);
                         if (val) {
@@ -2937,6 +2954,8 @@
                 // 打开时从 localStorage 快照一份到暂存区
                 const saved = localStorage.getItem('subCategorySettings');
                 this.tempSubCategoryConfig = saved ? JSON.parse(saved) : Object.assign({}, this.getDefaultSubCategories());
+                this.tempSubCategoryParamConfig = {};
+                this.expandedParamPanel = -1;
                 this.renderCategoryConfigLeftPanel();
                 // 显示占位提示
                 document.getElementById('configRightPlaceholder').classList.remove('hidden');
@@ -3007,6 +3026,9 @@
                 document.getElementById('configSubCategoryTitle').textContent = cat ? cat.name : categoryId;
                 // 加载位置编号前缀
                 this.loadConfigLocationPrefix(categoryId);
+                // 快照该类别各子类别的分化参数到暂存区（按索引与名字对齐）
+                if (!this.tempSubCategoryConfig[categoryId]) this.tempSubCategoryConfig[categoryId] = [];
+                this.initTempSubCategoryParams(categoryId);
                 this.renderConfigCategoryEditor();
             }
 
@@ -3043,6 +3065,8 @@
                 var config = this.tempSubCategoryConfig;
                 var items = config[category] ? config[category].slice() : [];
                 var defaults = this.getDefaultSubCategories()[category] || [];
+                this.syncTempParamArray(category);
+                var paramArr = this.tempSubCategoryParamConfig[category] || [];
                 var html = '';
                 for (var i = 0; i < items.length; i++) {
                     var name = items[i];
@@ -3050,17 +3074,26 @@
                     var isCustom = defaults.indexOf(name) === -1;
                     var badge = isCustom ? '<span class="text-xs text-blue-400 ml-2">自定义</span>' : '';
                     var countBadge = '<span class="text-xs text-gray-500 ml-2 flex-shrink-0">' + subCount + '项</span>';
-                    html += '<div class="flex items-center justify-between bg-gray-700/50 rounded-lg p-2.5">' +
+                    var pCount = (paramArr[i] || []).length;
+                    var isOpen = this.expandedParamPanel === i;
+                    var paramBtnCls = isOpen
+                        ? 'px-2 py-1 text-xs rounded border border-blue-500 text-blue-400 bg-blue-500/10 transition-colors'
+                        : 'px-2 py-1 text-xs rounded border border-gray-600 text-gray-400 hover:text-blue-400 hover:border-blue-500 transition-colors';
+                    html += '<div class="bg-gray-700/50 rounded-lg p-2.5">' +
+                        '<div class="flex items-center justify-between">' +
                         '<div class="flex items-center flex-1 mr-2">' +
-                        '<input type="text" value="' + this.escapeHtml(name) + '" data-index="' + i + '" class="subcat-input w-full px-2.5 py-1.5 bg-gray-600 text-white rounded border border-gray-500 focus:border-blue-500 focus:outline-none text-sm" placeholder="输入子类别名称">' +
+                        '<input type="text" value="' + this.escapeAttr(name) + '" data-index="' + i + '" class="subcat-input w-full px-2.5 py-1.5 bg-gray-600 text-white rounded border border-gray-500 focus:border-blue-500 focus:outline-none text-sm" placeholder="输入子类别名称">' +
                         countBadge +
                         badge +
                         '</div>' +
+                        '<button onclick="window.settingsManager.toggleConfigSubCategoryParams(' + i + ')" class="' + paramBtnCls + ' flex-shrink-0 mr-1" title="配置该子类别的分化参数">参数 ' + pCount + ' ' + (isOpen ? '▴' : '▾') + '</button>' +
                         '<button onclick="window.settingsManager.deleteConfigSubCategory(' + i + ')" class="p-1 hover:bg-red-600 rounded transition-colors flex-shrink-0" title="删除">' +
                         '<svg class="w-3.5 h-3.5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">' +
                         '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>' +
                         '</svg>' +
-                        '</button></div>';
+                        '</button></div>' +
+                        (isOpen ? this.renderSubCategoryParamPanel(category, i) : '') +
+                        '</div>';
                 }
                 html += '<button onclick="window.settingsManager.addNewConfigSubCategory()" class="w-full py-2 border-2 border-dashed border-gray-600 hover:border-blue-500 text-gray-400 hover:text-blue-400 rounded-lg transition-colors flex items-center justify-center space-x-1.5 text-sm">' +
                     '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">' +
@@ -3068,18 +3101,300 @@
                     '</svg>' +
                     '<span>新增子类别</span></button>';
                 document.getElementById('configSubCategoryList').innerHTML = html;
-                // 绑定输入事件
-                var newInputs = document.querySelectorAll('.subcat-input');
-                for (var j = 0; j < newInputs.length; j++) {
-                    (function(idx) {
-                        newInputs[idx].addEventListener('input', function() {
-                            var cat = window.settingsManager.currentConfigCategory;
-                            if (window.settingsManager.tempSubCategoryConfig[cat] && window.settingsManager.tempSubCategoryConfig[cat][idx] !== undefined) {
-                                window.settingsManager.tempSubCategoryConfig[cat][idx] = this.value;
-                            }
-                        });
-                    })(j);
+                this.bindConfigCategoryEditorEvents(category);
+            }
+
+            // 绑定子类别名称 + 参数面板的所有事件。
+            // 输入类事件只写暂存区、【不重渲染】（否则每敲一个字就失焦）；
+            // 结构类操作改完暂存区再整体重渲染。
+            bindConfigCategoryEditorEvents(category) {
+                var self = this;
+
+                document.querySelectorAll('.subcat-input').forEach(function(input) {
+                    input.addEventListener('input', function() {
+                        var idx = parseInt(this.dataset.index, 10);
+                        if (self.tempSubCategoryConfig[category] && self.tempSubCategoryConfig[category][idx] !== undefined) {
+                            self.tempSubCategoryConfig[category][idx] = this.value;
+                        }
+                    });
+                });
+
+                document.querySelectorAll('.sp-label').forEach(function(input) {
+                    input.addEventListener('input', function() {
+                        var def = self._spDef(this);
+                        if (def) def.label = this.value;
+                    });
+                });
+
+                document.querySelectorAll('.sp-unit-name').forEach(function(input) {
+                    input.addEventListener('input', function() {
+                        var loc = self._spUnitLoc(this);
+                        if (!loc) return;
+                        var def = loc.def;
+                        var oldName = def.units[loc.unitIndex];
+                        var newName = this.value;
+                        def.units[loc.unitIndex] = newName;
+                        // 倍率与默认单位跟着改名走，避免改个单位名就把配置丢掉
+                        if (Object.prototype.hasOwnProperty.call(def.unitRates, oldName)) {
+                            def.unitRates[newName] = def.unitRates[oldName];
+                            delete def.unitRates[oldName];
+                        }
+                        if (def.defaultUnit === oldName) def.defaultUnit = newName;
+                    });
+                });
+
+                document.querySelectorAll('.sp-unit-rate').forEach(function(input) {
+                    input.addEventListener('input', function() {
+                        var loc = self._spUnitLoc(this);
+                        if (!loc) return;
+                        var def = loc.def;
+                        def.unitRates[def.units[loc.unitIndex]] = this.value;
+                    });
+                });
+
+                document.querySelectorAll('.sp-unit-default').forEach(function(input) {
+                    input.addEventListener('change', function() {
+                        var loc = self._spUnitLoc(this);
+                        if (!loc || !this.checked) return;
+                        loc.def.defaultUnit = loc.def.units[loc.unitIndex];
+                    });
+                });
+
+                // 选项没有默认项，也没有倍率，因此只有这一条监听；定位用 _spLoc（只读 data-sub/data-param）
+                document.querySelectorAll('.sp-option').forEach(function(input) {
+                    input.addEventListener('input', function() {
+                        var loc = self._spLoc(this);
+                        if (!loc || !Array.isArray(loc.def.options)) return;
+                        loc.def.options[parseInt(this.dataset.opt, 10)] = this.value;
+                    });
+                });
+            }
+
+            // 从 DOM 元素反查它所属的子类别索引 / 参数下标
+            _spLoc(el) {
+                var idx = parseInt(el.dataset.sub, 10);
+                var pIdx = parseInt(el.dataset.param, 10);
+                var category = this.currentConfigCategory;
+                var arr = this.tempSubCategoryParamConfig[category];
+                if (!arr || !arr[idx] || !arr[idx][pIdx]) return null;
+                return { subIndex: idx, paramIndex: pIdx, def: arr[idx][pIdx] };
+            }
+
+            _spDef(el) {
+                var loc = this._spLoc(el);
+                return loc ? loc.def : null;
+            }
+
+            _spUnitLoc(el) {
+                var loc = this._spLoc(el);
+                if (!loc) return null;
+                loc.unitIndex = parseInt(el.dataset.unit, 10);
+                return loc;
+            }
+
+            // 单个子类别的分化参数面板
+            renderSubCategoryParamPanel(category, subIndex) {
+                var defs = (this.tempSubCategoryParamConfig[category] || [])[subIndex] || [];
+                var catParams = this.getParamDefsForCategory(category) || [];
+                var mergedHint = catParams.length
+                    ? '本类别已有品类级参数：' + catParams.map(d => this.escapeHtml(d.label)).join('、') + '（叠加显示，不替换）'
+                    : '本类别暂无品类级参数';
+
+                var html = '<div class="mt-2.5 pl-3 border-l-2 border-gray-600 space-y-2">' +
+                    '<div class="flex items-start justify-between gap-2">' +
+                    '<span class="text-xs text-gray-400">' + mergedHint + '</span>' +
+                    '<span class="text-xs text-gray-500 text-right flex-shrink-0">基准单位倍率填 1。例：Ω=1、kΩ=1000、MΩ=1000000</span>' +
+                    '</div>';
+
+                if (defs.length === 0) {
+                    html += '<p class="text-xs text-gray-500 py-1">该子类别暂无专属参数，点下方按钮添加。</p>';
                 }
+
+                for (var p = 0; p < defs.length; p++) {
+                    var def = defs[p];
+                    // 控件类型由 getParamControlType 三分（文本/单位/下拉），下面两个分支块互斥。
+                    // 不再用 hasUnits 单独判定：脏数据（type:'select' 却带 units）会让两个块同时渲染。
+                    var ctrlType = this.getParamControlType(def);
+                    var btnOn = 'bg-blue-600 text-white';
+                    var btnOff = 'bg-gray-700 text-gray-400 hover:text-white';
+                    var typeBtns = '<div class="flex rounded overflow-hidden border border-gray-600 flex-shrink-0">' +
+                        '<button onclick="window.settingsManager.setConfigSubCategoryParamType(' + subIndex + ',' + p + ',\'plain\')" title="纯文本，自由输入" class="px-2 py-1 text-xs transition-colors ' + (ctrlType === 'plain' ? btnOn : btnOff) + '">文本</button>' +
+                        '<button onclick="window.settingsManager.setConfigSubCategoryParamType(' + subIndex + ',' + p + ',\'unit\')" title="数值 + 单位下拉" class="px-2 py-1 text-xs transition-colors ' + (ctrlType === 'unit' ? btnOn : btnOff) + '">单位</button>' +
+                        '<button onclick="window.settingsManager.setConfigSubCategoryParamType(' + subIndex + ',' + p + ',\'select\')" title="下拉选择，选项由你自定义" class="px-2 py-1 text-xs transition-colors ' + (ctrlType === 'select' ? btnOn : btnOff) + '">下拉</button>' +
+                        '</div>';
+
+                    html += '<div class="bg-gray-800/60 rounded p-2.5 space-y-2">' +
+                        '<div class="flex items-center gap-2">' +
+                        '<span class="text-xs text-gray-500 w-10 flex-shrink-0">参数' + (p + 1) + '</span>' +
+                        '<input type="text" class="sp-label flex-1 min-w-0 px-2 py-1.5 bg-gray-600 text-white rounded border border-gray-500 focus:border-blue-500 focus:outline-none text-sm" data-sub="' + subIndex + '" data-param="' + p + '" value="' + this.escapeAttr(def.label || '') + '" placeholder="参数名称，如：灵敏度">' +
+                        typeBtns +
+                        '<button onclick="window.settingsManager.removeConfigSubCategoryParam(' + subIndex + ',' + p + ')" class="p-1 hover:bg-red-600 rounded transition-colors flex-shrink-0" title="删除该参数">' +
+                        '<svg class="w-3.5 h-3.5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>' +
+                        '</button>' +
+                        '</div>';
+
+                    if (ctrlType === 'unit') {
+                        html += '<div class="pl-12 space-y-1.5">' +
+                            '<div class="flex items-center gap-2 text-xs text-gray-500">' +
+                            '<span class="w-4"></span>' +
+                            '<span class="w-28">单位名称</span>' +
+                            '<span class="w-32">换算倍率（相对基准）</span>' +
+                            '<span class="ml-1">默认</span>' +
+                            '</div>';
+                        for (var u = 0; u < def.units.length; u++) {
+                            var unitName = def.units[u];
+                            var isDefault = (def.defaultUnit === unitName) || (!def.defaultUnit && u === 0);
+                            var radioName = 'sp-def-' + category + '-' + subIndex + '-' + p;
+                            html += '<div class="flex items-center gap-2">' +
+                                '<input type="radio" name="' + radioName + '" class="sp-unit-default w-4 h-4 accent-blue-500 flex-shrink-0" data-sub="' + subIndex + '" data-param="' + p + '" data-unit="' + u + '"' + (isDefault ? ' checked' : '') + '>' +
+                                '<input type="text" class="sp-unit-name w-28 px-2 py-1.5 bg-gray-600 text-white rounded border border-gray-500 focus:border-blue-500 focus:outline-none text-sm" data-sub="' + subIndex + '" data-param="' + p + '" data-unit="' + u + '" value="' + this.escapeAttr(unitName) + '" placeholder="如 kΩ">' +
+                                '<input type="number" step="any" min="0" class="sp-unit-rate w-32 px-2 py-1.5 bg-gray-600 text-white rounded border border-gray-500 focus:border-blue-500 focus:outline-none text-sm" data-sub="' + subIndex + '" data-param="' + p + '" data-unit="' + u + '" value="' + this.escapeAttr(String(this.getUnitRateFor(def, unitName))) + '" placeholder="1000">' +
+                                '<button onclick="window.settingsManager.removeConfigSubCategoryParamUnit(' + subIndex + ',' + p + ',' + u + ')" class="p-1 hover:bg-red-600 rounded transition-colors flex-shrink-0" title="删除该单位">' +
+                                '<svg class="w-3 h-3 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>' +
+                                '</button>' +
+                                '</div>';
+                        }
+                        html += '<button onclick="window.settingsManager.addConfigSubCategoryParamUnit(' + subIndex + ',' + p + ')" class="text-xs text-gray-400 hover:text-blue-400 transition-colors">+ 添加单位</button>' +
+                            '</div>';
+                    } else if (ctrlType === 'select') {
+                        // 选项行：class 用 sp-option、data 用 data-opt —— 绝不能沾 sp-unit- 前缀或 data-unit，
+                        // 上面那三段单位监听是全局 querySelectorAll，撞名会直接写坏 def.units
+                        var opts = Array.isArray(def.options) ? def.options : [];
+                        html += '<div class="pl-12 space-y-1.5">' +
+                            '<div class="flex items-center gap-2 text-xs text-gray-500">' +
+                            '<span class="w-4"></span>' +
+                            '<span class="w-28">选项名称</span>' +
+                            '<span>添加元器件时首项固定为「请选择」，需用户主动挑选</span>' +
+                            '</div>';
+                        for (var o = 0; o < opts.length; o++) {
+                            html += '<div class="flex items-center gap-2">' +
+                                '<input type="text" class="sp-option w-28 px-2 py-1.5 bg-gray-600 text-white rounded border border-gray-500 focus:border-blue-500 focus:outline-none text-sm" data-sub="' + subIndex + '" data-param="' + p + '" data-opt="' + o + '" value="' + this.escapeAttr(String(opts[o])) + '" placeholder="如 推挽">' +
+                                '<button onclick="window.settingsManager.removeConfigSubCategoryParamOption(' + subIndex + ',' + p + ',' + o + ')" class="p-1 hover:bg-red-600 rounded transition-colors flex-shrink-0" title="删除该选项">' +
+                                '<svg class="w-3 h-3 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>' +
+                                '</button>' +
+                                '</div>';
+                        }
+                        if (opts.length === 0) {
+                            html += '<p class="text-xs text-amber-400">尚未添加选项：添加元器件页只会显示「请选择」，选不了任何值。</p>';
+                        }
+                        html += '<button onclick="window.settingsManager.addConfigSubCategoryParamOption(' + subIndex + ',' + p + ')" class="text-xs text-gray-400 hover:text-blue-400 transition-colors">+ 添加选项</button>' +
+                            '</div>';
+                    }
+
+                    html += '</div>';
+                }
+
+                html += '<button onclick="window.settingsManager.addConfigSubCategoryParam(' + subIndex + ')" class="px-3 py-1.5 border border-dashed border-gray-600 hover:border-blue-500 text-gray-400 hover:text-blue-400 rounded text-xs transition-colors">+ 添加参数</button>' +
+                    '</div>';
+                return html;
+            }
+
+            // 展开/收起某个子类别的参数面板
+            toggleConfigSubCategoryParams(subIndex) {
+                this.expandedParamPanel = (this.expandedParamPanel === subIndex) ? -1 : subIndex;
+                this.renderConfigCategoryEditor();
+            }
+
+            addConfigSubCategoryParam(subIndex) {
+                var category = this.currentConfigCategory;
+                var arr = this.syncTempParamArray(category);
+                if (!arr[subIndex]) arr[subIndex] = [];
+                arr[subIndex].push({
+                    id: this.allocateSubParamId(category),
+                    label: '',
+                    type: 'plain',
+                    units: [],
+                    unitRates: {},
+                    defaultUnit: ''
+                });
+                this.renderConfigCategoryEditor();
+                setTimeout(function() {
+                    var inputs = document.querySelectorAll('.sp-label');
+                    if (inputs.length > 0) inputs[inputs.length - 1].focus();
+                }, 100);
+            }
+
+            removeConfigSubCategoryParam(subIndex, paramIndex) {
+                var arr = this.syncTempParamArray(this.currentConfigCategory);
+                if (!arr[subIndex]) return;
+                arr[subIndex].splice(paramIndex, 1);
+                this.renderConfigCategoryEditor();
+            }
+
+            setConfigSubCategoryParamType(subIndex, paramIndex, type) {
+                var arr = this.syncTempParamArray(this.currentConfigCategory);
+                var def = arr[subIndex] && arr[subIndex][paramIndex];
+                if (!def) return;
+                if (type === 'select') {
+                    // select 与单位数据互斥，切过来就清空，保证落盘前「select ⟺ units 为空」成立
+                    def.units = [];
+                    def.unitRates = {};
+                    def.defaultUnit = '';
+                    if (!Array.isArray(def.options) || def.options.length === 0) def.options = [''];
+                    def.type = 'select';
+                } else if (type === 'unit') {
+                    if (!def.units || def.units.length === 0) {
+                        def.units = [''];
+                        def.unitRates = { '': 1 };
+                        def.defaultUnit = '';
+                    }
+                    def.type = 'unit';
+                } else {
+                    // 切回无单位时【清掉】单位数据，避免保存出半截配置
+                    def.units = [];
+                    def.unitRates = {};
+                    def.defaultUnit = '';
+                    def.type = 'plain';
+                    // 此处刻意【不】delete def.options：type 已是 'plain'，getParamControlType 直接短路，
+                    // sanitize 落盘时也不会输出 options；留着反而让用户误切后切回来能恢复原选项
+                }
+                this.renderConfigCategoryEditor();
+            }
+
+            addConfigSubCategoryParamUnit(subIndex, paramIndex) {
+                var arr = this.syncTempParamArray(this.currentConfigCategory);
+                var def = arr[subIndex] && arr[subIndex][paramIndex];
+                if (!def) return;
+                if (!def.units) def.units = [];
+                if (!def.unitRates) def.unitRates = {};
+                def.units.push('');
+                def.defaultUnit = def.defaultUnit || '';
+                this.renderConfigCategoryEditor();
+            }
+
+            removeConfigSubCategoryParamUnit(subIndex, paramIndex, unitIndex) {
+                var arr = this.syncTempParamArray(this.currentConfigCategory);
+                var def = arr[subIndex] && arr[subIndex][paramIndex];
+                if (!def || !def.units) return;
+                var removed = def.units[unitIndex];
+                def.units.splice(unitIndex, 1);
+                if (removed !== undefined && def.unitRates) delete def.unitRates[removed];
+                if (def.defaultUnit === removed) def.defaultUnit = def.units[0] || '';
+                if (def.units.length === 0) {
+                    def.defaultUnit = '';
+                    // select 的 units 恒为空，这一支正常不可达；但「先把 select 切成有单位、
+                    // 再删光单位」会走到 —— 此时若把 type 降成 plain，用户配的下拉就静默变回文本框
+                    if (def.type !== 'select') def.type = 'plain';
+                }
+                this.renderConfigCategoryEditor();
+            }
+
+            addConfigSubCategoryParamOption(subIndex, paramIndex) {
+                var arr = this.syncTempParamArray(this.currentConfigCategory);
+                var def = arr[subIndex] && arr[subIndex][paramIndex];
+                if (!def) return;
+                if (!Array.isArray(def.options)) def.options = [];
+                def.options.push('');
+                this.renderConfigCategoryEditor();
+            }
+
+            removeConfigSubCategoryParamOption(subIndex, paramIndex, optionIndex) {
+                var arr = this.syncTempParamArray(this.currentConfigCategory);
+                var def = arr[subIndex] && arr[subIndex][paramIndex];
+                if (!def || !Array.isArray(def.options)) return;
+                // 没有「默认选项」，所以删项不需要像删单位那样回填 defaultUnit
+                def.options.splice(optionIndex, 1);
+                this.renderConfigCategoryEditor();
             }
 
             addNewConfigSubCategory() {
@@ -3088,6 +3403,7 @@
                 if (!category) return;
                 if (!config[category]) config[category] = [];
                 config[category].push('新子类别');
+                this.syncTempParamArray(category);
                 this.renderConfigCategoryEditor();
                 setTimeout(function() {
                     var inputs = document.querySelectorAll('.subcat-input');
@@ -3105,14 +3421,75 @@
                 var name = config[category][index] || '';
                 if (!confirm('确定要删除"' + name + '"吗？')) return;
                 config[category].splice(index, 1);
+                // 参数暂存同步删除：落盘时该名字不在名单里，其定义自然不会写出，孤儿自动消失
+                var arr = this.syncTempParamArray(category);
+                arr.splice(index, 1);
+                if (this.expandedParamPanel === index) this.expandedParamPanel = -1;
                 this.renderConfigCategoryEditor();
                 this.showNotification('已删除', 'success');
             }
 
             saveConfigSubCategory() {
+                var category = this.currentConfigCategory;
+                if (!category) return;
+
                 var config = this.tempSubCategoryConfig;
+                // 收集子类别名称：去空、去重（去重会打乱索引对应，故先记录原索引映射）
+                var rawNames = config[category] || [];
+                var nameInputs = document.querySelectorAll('.subcat-input');
+                nameInputs.forEach(function(input, i) {
+                    if (rawNames[i] !== undefined) rawNames[i] = input.value;
+                });
+
+                this.syncTempParamArray(category);
+                var rawParams = this.tempSubCategoryParamConfig[category] || [];
+
+                var names = [];
+                var paramMap = {};
+                var seen = {};
+                for (var i = 0; i < rawNames.length; i++) {
+                    var name = String(rawNames[i] || '').trim();
+                    if (!name || seen[name]) continue;   // 空名或重名 → 丢弃这一行
+                    seen[name] = true;
+                    names.push(name);
+
+                    var cleaned = [];
+                    (rawParams[i] || []).forEach(function(def, pi) {
+                        var out = this.sanitizeSubParamDef(def, category);
+                        if (out) {
+                            // 同一子类别内 id 去重。暂存区发号已保证唯一，这里是脏导入
+                            // 等异常数据的兜底，走同一个发号器以留在 s* 命名空间
+                            for (var k = 0; k < cleaned.length; k++) {
+                                if (cleaned[k].id === out.id) {
+                                    out = Object.assign({}, out, { id: this.allocateSubParamId(category) });
+                                    break;
+                                }
+                            }
+                            cleaned.push(out);
+                        }
+                    }, this);
+                    if (cleaned.length) paramMap[name] = cleaned;
+                }
+
+                // 子类别名称与参数定义必须一起落盘，避免“名字已改、参数还挂在旧名下”的中间态
+                config[category] = names;
+                this.tempSubCategoryParamConfig[category] = names.map(n => paramMap[n] || []);
+
                 this.saveSubCategorySettings(config);
-                this.showNotification('子类别配置已保存！', 'success');
+
+                var allParams = this.loadSubCategoryParamDefs();
+                if (Object.keys(paramMap).length) {
+                    allParams[category] = paramMap;
+                } else {
+                    delete allParams[category];
+                }
+                this.saveSubCategoryParamDefs(allParams);
+
+                this.syncSettingsToServer();
+                this.expandedParamPanel = -1;
+                this.renderCategoryConfigLeftPanel();
+                this.renderConfigCategoryEditor();
+                this.showNotification('子类别与分化参数已保存！', 'success');
             }
 
             resetConfigSubCategory() {
@@ -3125,6 +3502,8 @@
                     } else {
                         this.tempSubCategoryConfig[category] = [];
                     }
+                    // 分化参数暂存也跟着重新快照（丢弃未保存的参数编辑）
+                    this.initTempSubCategoryParams(category);
                     this.renderConfigCategoryEditor();
                     this.showNotification('已重置为默认配置', 'success');
                 }
@@ -3416,18 +3795,256 @@
                 ]
             };
 
+            // 子类别分化参数的【内置默认】，与 main.js / add-component.html 的同名表保持一致。
+            // 用户在编辑器里的修改落到 localStorage.subCategoryParamDefinitions，覆盖此处的默认。
+            // 内置 id 一律保持 p1..pN 不变（模板按 paramId 取值且无兜底），新增参数用 s1..sN。
+            builtinSubCategoryParamDefs = {
+                ic: {
+                    '单片机': [
+                        { id: 'p1', label: '内核框架', type: 'plain', units: [], unitRates: {}, defaultUnit: '', filterable: false },
+                        { id: 'p2', label: 'Flash', type: 'unit', units: ['B', 'KB', 'MB'], unitRates: { 'B': 1, 'KB': 1024, 'MB': 1048576 }, defaultUnit: 'KB' },
+                        { id: 'p3', label: 'SRAM', type: 'unit', units: ['B', 'KB', 'MB'], unitRates: { 'B': 1, 'KB': 1024, 'MB': 1048576 }, defaultUnit: 'KB' },
+                        { id: 'p4', label: '最大主频', type: 'unit', units: ['MHz', 'GHz'], unitRates: { 'MHz': 1000000, 'GHz': 1000000000 }, defaultUnit: 'MHz' },
+                        { id: 'p5', label: '通用I/O数目', type: 'plain', units: [], unitRates: {}, defaultUnit: '', numeric: true }
+                    ]
+                }
+            };
+
             // 获取指定类别（内置或自定义）的参数定义
             getParamDefsForCategory(categoryKey) {
-                // 先查自定义参数定义
+                // 内置优先、自定义兜底（与 main.js 的渲染端保持一致；此处只用品类级，不含子类别）
+                if (this.builtInParamDefs[categoryKey]) {
+                    return this.builtInParamDefs[categoryKey];
+                }
                 var customParams = JSON.parse(localStorage.getItem('customParamDefinitions') || '{}');
                 if (customParams[categoryKey] && customParams[categoryKey].length > 0) {
                     return customParams[categoryKey];
                 }
-                // 再查内置参数定义
-                if (this.builtInParamDefs[categoryKey]) {
-                    return this.builtInParamDefs[categoryKey];
-                }
                 return null;
+            }
+
+            // ============= 子类别分化参数（shared 工具） =============
+
+            // 内置单位换算表：单位名 → 相对基准单位的倍率（与 main.js 的 BUILTIN_UNIT_TO_BASE 保持一致）
+            BUILTIN_UNIT_TO_BASE = {
+                'Ω': 1, 'kΩ': 1000, 'MΩ': 1000000,
+                'F': 1, 'mF': 0.001, 'μF': 0.000001, 'nF': 0.000000001, 'pF': 0.000000000001,
+                'H': 1, 'mH': 0.001, 'μH': 0.000001,
+                'V': 1, 'mV': 0.001,
+                'A': 1, 'mA': 0.001,
+                'W': 1, 'mW': 0.001,
+                'Hz': 1, 'kHz': 1000, 'MHz': 1000000, 'GHz': 1000000000,
+                'B': 1, 'KB': 1024, 'MB': 1048576,
+                's': 1, 'ms': 0.001, 'μs': 0.000001, 'ns': 0.000000001,
+                'K': 1
+            };
+
+            // 读取/写入用户配置的子类别分化参数定义
+            loadSubCategoryParamDefs() {
+                try {
+                    return JSON.parse(localStorage.getItem('subCategoryParamDefinitions') || '{}');
+                } catch (e) {
+                    console.error('解析 subCategoryParamDefinitions 失败:', e);
+                    return {};
+                }
+            }
+
+            saveSubCategoryParamDefs(defs) {
+                localStorage.setItem('subCategoryParamDefinitions', JSON.stringify(defs || {}));
+            }
+
+            // 取某子类别的分化参数定义：用户存过就用存的（含空数组），没存过才用内置默认
+            getSubCategoryParamDefsFor(category, subCategory) {
+                if (!category || !subCategory) return null;
+                var stored = this.loadSubCategoryParamDefs();
+                if (stored[category] && Object.prototype.hasOwnProperty.call(stored[category], subCategory)) {
+                    return stored[category][subCategory];
+                }
+                var builtin = this.builtinSubCategoryParamDefs[category];
+                return (builtin && builtin[subCategory]) ? builtin[subCategory] : null;
+            }
+
+            // 为一个 (category, 子类别) 下的新参数分配 id。
+            // 在整个 category 范围内扫描所有已用 sN（含内置默认与其它子类别），取最大 +1，不回收旧号。
+            // 子类别参数一律用 s 命名空间，避免与品类级参数的 p1..pN 撞车。
+            allocateSubParamId(category) {
+                var used = [];
+                var builtin = this.builtinSubCategoryParamDefs[category] || {};
+                Object.keys(builtin).forEach(k => { (builtin[k] || []).forEach(d => used.push(d)); });
+                var stored = this.loadSubCategoryParamDefs()[category] || {};
+                Object.keys(stored).forEach(k => { (stored[k] || []).forEach(d => used.push(d)); });
+                (this.getParamDefsForCategory(category) || []).forEach(d => used.push(d));
+                // 暂存区也要计入：连点两次「添加参数」时前一个尚未落盘，
+                // 只扫已存数据会两次发出同一个号
+                var staged = this.tempSubCategoryParamConfig && this.tempSubCategoryParamConfig[category];
+                if (Array.isArray(staged)) {
+                    staged.forEach(function(list) { (list || []).forEach(function(d) { used.push(d); }); });
+                }
+
+                var max = 0;
+                used.forEach(d => {
+                    var m = /^s(\d+)$/.exec((d && d.id) || '');
+                    if (m) max = Math.max(max, parseInt(m[1], 10));
+                });
+                return 's' + (max + 1);
+            }
+
+            // 参数控件的类型：下拉 > 有单位 > 纯文本。三态互斥，由下面的 sanitizeSubParamDef
+            // 归一化保证（select 的 units 恒为空、非 select 不带 options）。
+            // 显式 type 优先，缺失/损坏时按形状兜底。
+            // 运行端 main.js / add-component.html 有同名方法，三份必须保持一致。
+            getParamControlType(def) {
+                if (!def) return 'plain';
+                if (def.type === 'select') return 'select';
+                if (def.type === 'unit' || def.type === 'plain') {
+                    return (def.units && def.units.length > 0) ? 'unit' : 'plain';
+                }
+                if (Array.isArray(def.options) && def.options.length > 0) return 'select';
+                if (def.units && def.units.length > 0) return 'unit';
+                return 'plain';
+            }
+
+            // 单位倍率的展示值：用户配置优先，其次内置表，最后 1
+            getUnitRateFor(def, unitName) {
+                if (def && def.unitRates && Object.prototype.hasOwnProperty.call(def.unitRates, unitName)) {
+                    return def.unitRates[unitName];
+                }
+                if (Object.prototype.hasOwnProperty.call(this.BUILTIN_UNIT_TO_BASE, unitName)) {
+                    return this.BUILTIN_UNIT_TO_BASE[unitName];
+                }
+                return 1;
+            }
+
+            // 校验并清洗一个 def；返回清洗后的 def，或 null（应丢弃该行）
+            sanitizeSubParamDef(def, category) {
+                if (!def) return null;
+                var label = String(def.label || '').trim();
+                if (!label) return null;   // 参数名为空 → 丢弃该行
+
+                var units = [];
+                var unitRates = {};
+                (Array.isArray(def.units) ? def.units : []).forEach(u => {
+                    var name = String(u || '').trim();
+                    if (!name || units.indexOf(name) !== -1) return;   // 空名或重名 → 丢弃
+                    var raw = (def.unitRates || {})[name];
+                    var rate = parseFloat(raw);
+                    if (!isFinite(rate) || rate <= 0) rate = 1;        // 空/0/负数/非数字 → 1
+                    units.push(name);
+                    unitRates[name] = rate;
+                });
+
+                // 下拉选项：去空白、丢空串、组内去重（与 units 同款策略）
+                var options = [];
+                (Array.isArray(def.options) ? def.options : []).forEach(o => {
+                    var opt = String(o || '').trim();
+                    if (!opt || options.indexOf(opt) !== -1) return;
+                    options.push(opt);
+                });
+
+                var defaultUnit = String(def.defaultUnit || '').trim();
+                if (units.length === 0) {
+                    defaultUnit = '';
+                } else if (units.indexOf(defaultUnit) === -1) {
+                    defaultUnit = units[0];   // 默认单位不在列表里 → 回落第一个
+                }
+
+                // 三态互斥归一化：select ⟹ 单位/倍率/默认单位全清空；非 select ⟹ 不写出 options。
+                // 这样落盘数据里 options 与 units 永不共存，运行端 getParamControlType 的短路才成立。
+                // 判 select 用 getParamControlType 而不是裸 def.type，让「type 丢了但 options 还在」
+                // 的手改/导入数据也能救回来（与运行端同一处理解）。
+                var isSelect = this.getParamControlType(def) === 'select';
+
+                var out = {
+                    id: def.id || this.allocateSubParamId(category),
+                    label: label,
+                    // 注意这里不能直接用 isSelect 当结果：type:'unit' 但 units 为空时必须归一成
+                    // 'plain'，否则会存出一个「有单位类型却零单位」的 def，渲染成空下拉
+                    type: isSelect ? 'select' : (units.length > 0 ? 'unit' : 'plain'),
+                    units: units,
+                    unitRates: unitRates,
+                    defaultUnit: defaultUnit
+                };
+                if (isSelect) {
+                    out.units = [];
+                    out.unitRates = {};
+                    out.defaultUnit = '';
+                    out.options = options;   // 空 options 也照写：类型由 type 决定，不靠 options 长度
+                }
+                if (def.filterable === false) out.filterable = false;
+                if (def.numeric === true) out.numeric = true;
+                return out;
+            }
+
+            // 导入时的整表清洗：剔除坏结构，避免脏数据流入渲染端
+            sanitizeSubCategoryParamDefs(raw) {
+                var out = {};
+                if (!raw || typeof raw !== 'object') return out;
+                Object.keys(raw).forEach(cat => {
+                    var subMap = raw[cat];
+                    if (!subMap || typeof subMap !== 'object') return;
+                    var cleanedCat = {};
+                    Object.keys(subMap).forEach(subName => {
+                        var defs = subMap[subName];
+                        if (!Array.isArray(defs)) return;
+                        var cleaned = [];
+                        defs.forEach(def => {
+                            var safe = this.sanitizeSubParamDef(def, cat);
+                            if (!safe) return;
+                            // id 必须唯一且非空，冲突时重新发号
+                            for (var i = 0; i < cleaned.length; i++) {
+                                if (cleaned[i].id === safe.id) { safe.id = 's' + (cleaned.length + 1); i = -1; }
+                            }
+                            cleaned.push(safe);
+                        });
+                        if (cleaned.length) cleanedCat[subName] = cleaned;
+                    });
+                    if (Object.keys(cleanedCat).length) out[cat] = cleanedCat;
+                });
+                return out;
+            }
+
+            // 按索引把旧名字的参数定义搬到新名字；名字消失的定义删除（供遗留模态框兜底）
+            reconcileSubCategoryParamDefs(category, oldNames, newNames) {
+                var all = this.loadSubCategoryParamDefs();
+                var map = all[category] || {};
+                var next = {};
+                var n = Math.max(oldNames.length, newNames.length);
+                for (var i = 0; i < n; i++) {
+                    var oldName = oldNames[i];
+                    var newName = newNames[i];
+                    if (newName && map[newName]) { next[newName] = map[newName]; continue; }
+                    if (newName && oldName && map[oldName]) next[newName] = map[oldName];
+                }
+                if (Object.keys(next).length) {
+                    all[category] = next;
+                } else {
+                    delete all[category];
+                }
+                this.saveSubCategoryParamDefs(all);
+            }
+
+            // ============= 子类别分化参数（暂存区） =============
+
+            // 把 tempSubCategoryParamConfig[cat] 补齐到与名字数组等长（索引对齐是改名/删除自动跟随的关键）
+            syncTempParamArray(category) {
+                var names = this.tempSubCategoryConfig[category] || [];
+                var arr = this.tempSubCategoryParamConfig[category];
+                if (!arr) arr = this.tempSubCategoryParamConfig[category] = [];
+                while (arr.length < names.length) arr.push([]);
+                arr.length = names.length;
+                return arr;
+            }
+
+            // 按名字逐个初始化参数暂存：localStorage 命中则深拷贝，否则用内置默认，否则 []
+            initTempSubCategoryParams(category) {
+                var names = this.tempSubCategoryConfig[category] || [];
+                var arr = [];
+                for (var i = 0; i < names.length; i++) {
+                    var defs = this.getSubCategoryParamDefsFor(category, names[i]);
+                    arr.push(defs ? JSON.parse(JSON.stringify(defs)) : []);
+                }
+                this.tempSubCategoryParamConfig[category] = arr;
+                this.expandedParamPanel = -1;
             }
 
             // 生成下一个未使用的前缀（A, B, ..., Z, AA, AB, ...）
@@ -3624,6 +4241,8 @@
                 if (confirm('确定要重置所有子类别为默认配置吗？\n\n这将清除您的所有自定义设置。')) {
                     this.tempSubCategoryConfig = this.getDefaultSubCategories();
                     localStorage.removeItem('subCategorySettings');
+                    // 子类别回到默认后，挂在旧子类别名下的分化参数也必须一并清掉
+                    localStorage.removeItem('subCategoryParamDefinitions');
                     this.renderSubCategoryTabs();
                     this.showNotification('已重置为默认配置！', 'success');
                 }
@@ -3961,6 +4580,10 @@
                 var customParams = JSON.parse(localStorage.getItem('customParamDefinitions') || '{}');
                 delete customParams[key];
                 localStorage.setItem('customParamDefinitions', JSON.stringify(customParams));
+                // 子类别分化参数也要随类别一起删除
+                var subCatParams = this.loadSubCategoryParamDefs();
+                delete subCatParams[key];
+                this.saveSubCategoryParamDefs(subCatParams);
                 var prefixConfig = JSON.parse(localStorage.getItem('locationPrefixConfig') || '{}');
                 delete prefixConfig[key];
                 localStorage.setItem('locationPrefixConfig', JSON.stringify(prefixConfig));
@@ -4208,8 +4831,12 @@
                     // 保存空列表
                 }
                 const saved = JSON.parse(localStorage.getItem('subCategorySettings') || '{}');
+                const oldNames = saved[key] || [];
                 saved[key] = items;
                 localStorage.setItem('subCategorySettings', JSON.stringify(saved));
+                // 这条路径绕过了类别配置弹窗的暂存区，需要按索引把子类别分化参数
+                // 搬到新名字下，并删除已消失名字的定义，否则会残留孤儿
+                this.reconcileSubCategoryParamDefs(key, oldNames, items);
                 this.syncSettingsToServer();
                 this.showNotification('子类别已保存', 'success');
                 this.closeCategorySubCatModal();

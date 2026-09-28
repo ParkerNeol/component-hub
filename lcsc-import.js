@@ -373,6 +373,13 @@ class LcscImportManager {
         }
 
         const result = defs.map(def => {
+            // 下拉型参数直接留空：它的合法取值只有 def.options 里那几个，而下面两级查找
+            // 是「名称包含」的模糊匹配，抓回来的必然是自由文本（如整段「推挽输出/开漏输出」），
+            // 既对不上任何选项，又会在编辑弹窗里落到「请选择」，用户一保存就把值洗掉。
+            if (cm.getParamControlType(def) === 'select') {
+                return { id: def.id, value: '', unit: '', label: def.label };
+            }
+
             // 查找匹配的 LCSC 参数
             let lcscValue = '';
             let lcscUnit = def.defaultUnit || '';

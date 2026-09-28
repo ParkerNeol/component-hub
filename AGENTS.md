@@ -117,10 +117,128 @@
 
 ## 版本控制
 - 静态资源使用 `?v=xxx` 参数进行缓存控制
-- 当前版本号：`v20260427ax`
+- 当前版本号：`v20260928b`
 - 更新代码后需更新版本号参数
 
 ## 已知问题与修复记录
+### 2026-09-28 (v20260928b): 分化参数新增第三种类型「参数名 + 下拉选择」
+- **背景**: 前两种类型（文本 / 单位）都只能让用户自由输入，枚举型规格（「输出类型：推挽/开漏」
+  「封装形式：SMD/插件」）会出现「推挽」「推挽输出」「Push-Pull」多种写法，既无法统一也无法按值筛选。
+  第三种 def：`{ "id":"s3", "label":"输出类型", "type":"select", "options":["推挽","开漏"],
+  "units":[], "unitRates":{}, "defaultUnit":"" }`
+- **⚠️ 最重要的一条：`type` 从此是运行时权威判别，不再是「只是编辑器态字段」**。
+  上文 v20260928a 里「运行时一律以 `units.length > 0` 判断」的说法**已作废**。
+  三种类型的判别**唯一入口**是 `getParamControlType(def)`（`main.js` / `add-component.html` /
+  `settings.html` 三份副本，**必须逐字一致**，只允许缩进不同）：
+  `type:'select'` ⇒ `'select'`；`type:'unit'|'plain'` ⇒ 按 `units.length` 分 `'unit'|'plain'`；
+  两者都没有（老数据、内置 8 个品类级 `paramDefinitions`）⇒ 落到形状判断：**先看 `options`，
+  再看 `units`**。顺序刻意如此 —— 老世界的 def 从不带 `options`，所以「先 options」对老数据零影响；
+  而 `options` 比残留的 `units` 更能表明意图。判定顺序本身不影响正确性，**关键是三个文件和
+  `sanitizeSubParamDef` 必须同解**，否则会出现「编辑器显示下拉、添加页显示文本框」这种极难排查的不一致
+- **三态互斥，由 `sanitizeSubParamDef` 归一化保证**（它是**唯一落盘关口**，`out` 是白名单，
+  没列出的字段会被静默丢弃）：`select` ⟹ `units`/`unitRates`/`defaultUnit` 清空、写出 `options`；
+  非 `select` ⟹ **不输出** `options`。所以落盘数据里两者永不共存
+- **⚠️ 本类型的专属陷阱**:
+  1. **`options` 为空也仍然是 `select`**（渲染出一个只有「请选择」的下拉，选不了值）。
+     刻意不设计成「空 options 退化为文本框」：那会让编辑器（显示下拉）与添加页（显示文本框）
+     对同一个 def 给出不同控件，排查成本远高于一个可见的空下拉。编辑器对此有琥珀色警示文案
+  2. **选项行的 class / data 命名不能撞单位行**：用 `.sp-option` + `data-opt`，
+     **绝不能用 `sp-unit-` 前缀或 `data-unit`** —— `bindConfigCategoryEditorEvents` 里三段单位监听
+     是全局 `querySelectorAll`，撞名会直接写坏 `def.units`
+  3. **`setConfigSubCategoryParamType` 是三分支，不是二元 `if/else`**。原来是 `else` 兜底，
+     传 `'select'` 会掉进 `else`：清空单位**并把 `type` 写成 `'plain'`**、选项一并丢失。
+     `removeConfigSubCategoryParamUnit` 的「units 删空 ⇒ 降级 plain」同理需要
+     `if (def.type !== 'select')` 护栏（「先把 select 切成有单位、再删光单位」会走到）
+  4. **切类型时刻意不 `delete def.options`**：`type` 已是 `'plain'`，`getParamControlType` 直接短路，
+     sanitize 也不会输出它；留着反而让用户误切后切回来能恢复原选项
+  5. **`checkParamFilter` 的下拉分支必须插在 `if (!filter.min && !filter.max) continue;` 之前**。
+     下拉的条件只有 `{value}`，先过 min/max 那关会被当成「没设筛选」**静默跳过**（筛选看着生效其实没有）。
+     同时该分支要**自己做一次 param 查询**：下面那句的 `const param` 在同一个块里，
+     提前引用是 **TDZ 报错**而不是拿到 `undefined`
+  6. **`paramFilterActive`（`collectParamFilters`）与清除按钮判定（`updateParamFilterFields`）
+     都必须带上 `f.value`**，漏掉就是「选项选好了、列表不动、清除按钮也不出现」
+  7. **`add-component.html` 的事件绑定选择器必须补 `select[id^="param-"]`**：下拉型的 id 与文本框
+     同名段（`param-<id>`），原来只匹配 `input[id^="param-"]`，选了下拉项**实时预览不刷新**
+  8. **回填必须走 `setSelectValue(el, value)`**（`add-component.html`）：`select.value = X`
+     只在存在 `value === X` 的 option 时生效，选项被改名/删除后会静默停在第一项（「请选择」，值 `''`），
+     用户下次保存就把原值洗掉。该 helper 匹配不上时动态补一个「（选项已失效）」option 兜住旧值。
+     `main.js` 的 `renderParamFields` 用等价的内联做法（`val` 非空且不在 options 里就补一个选中项）
+  9. **`lcsc-import.js` 的 `extractParams` 对 select 直接返回空值**：那两级查找是「名称包含」的
+     模糊匹配，抓回来的必然是整段自由文本，对不上任何选项、又会被上面的第 8 条洗掉
+  10. **批量编辑的收集侧要显式给 `unit: ''`**，不能靠 `def.defaultUnit` 兜底（脏数据里 select 可能残留它）
+  11. **选项值输出一律 `escapeAttr`，但 `selected` 判定要用原始值比**（`u === val`）：
+     先转义再比较会让含引号/`&` 的选项永远选不中
+- **本次一并修掉的既有缺陷**: 上面第 7 条（实时预览不刷新）是引入 select 时必然踩到的既有隐性 bug；
+  第 10 条同批暴露
+- **刻意未做（已知、待定）**:
+  - 既有的**单位**下拉（`editTemplate` / `applyTemplate`）没有套用 `setSelectValue`。它与 select 有
+    同样的 stale-value 风险（`lcsc-import.js` 能写入不在 `def.units` 里的单位），但保住旧单位意味着
+    `convertToUnit` 把它当倍率 `1` ⇒ **范围筛选静默算错**。这是「保数据」与「保筛选正确」的取舍，
+    属于独立的行为变更，未纳入本次
+  - `paramFilters` 的**跨品类幽灵过滤**：`_fromThisCategory: true` 的条目在 `updateParamFilterFields`
+    重渲染后仍在，而 DOM 输入框被重新渲染成 `value=""`，于是「框里空的、筛选还在生效」。
+    id 复用的品类（`p1` 等）之间尤其明显。超出本次范围
+
+### 2026-09-28 (v20260928a): 子类别分化参数可编辑（含用户自定义单位进制）
+- **问题**: 分化参数（元器件规格参数）只有品类级可配 —— 内置 8 个品类硬编码在 `main.js` /
+  `add-component.html` / `settings.html` 三处，自定义品类走 `customParamDefinitions`；
+  子类别级 `subCategoryParamDefinitions` 硬编码且**只有 `ic/单片机` 一条**，用户既不能编辑也不能新增。
+  于是给自定义品类加了子类别（如「传感器 / 压力传感器」）后，没法给这个子类别定义专属参数
+- **数据模型**: 新增 localStorage 键 **`subCategoryParamDefinitions`**（与 `subCategorySettings` 命名对称），
+  结构为 `{ 品类key: { 子类别名: [def, ...] } }`，靠**子类别名字符串**与 `subCategorySettings` 关联
+  （这正是 `component.subCategory` 存的格式）。单个 def：
+  ```jsonc
+  { "id": "p2", "label": "Flash", "type": "unit",
+    "units": ["B", "KB", "MB"], "unitRates": { "B":1, "KB":1024, "MB":1048576 },
+    "defaultUnit": "KB" }
+  ```
+  `type: 'plain'` = 参数名+输入框；`type: 'unit'` = 参数名+输入框+单位。
+  ~~运行时一律以 `units.length > 0` 判断~~ —— **此说法已被 v20260928b 作废**，判别入口改为
+  `getParamControlType(def)`（见上一条）。老 def 无 `type` 时仍落回形状判断，故上述两个类型的
+  行为逐字不变；保存时由 `sanitizeSubParamDef` 归一化 ⇒ `type` 丢失或损坏也不会渲染错
+- **叠加语义（用户明确决策）**: 品类级参数 **+** 子类别级参数，内置默认保留，**不做 label 去重**。
+  `getEffectiveParamDefs(category, subCategory)` 是唯一入口：品类级用 `paramDefinitions[cat] || custom[cat]`
+  （保留旧的「内置优先」内部优先级，这层不是本次要改的叠加），子类别级追加在后
+- **⚠️ 必须注意的点**:
+  1. **`units` 必须保持字符串数组**，倍率另走平行的 `unitRates` 映射。全项目有大量
+     `def.units.length > 0` / `def.units.map(u => '<option value="'+u+'">')` 的消费点，
+     改成 `{name,factor}` 对象数组会全线破坏。老 def 无 `unitRates` ⇒ `rates === undefined` ⇒
+     落回内置表，与旧行为逐字一致（**零破坏**）
+  2. **内置 `ic/单片机` 的 `p1..p5` 绝不能改名**。`customTemplates[*].value` 是**以 paramId 为 key 的对象**，
+     读取侧 `params[def.id]` **没有 label 或索引兜底** ⇒ 改 id 会让老模板的单片机参数在编辑时全空，
+     用户一保存就把 `value` 洗成空串，**静默丢数据**。新参数一律用 `s1..sN` 命名空间（`allocateSubParamId` 发号），
+     未来只增不改；`dedupeParamDefIds` 只在极端撞号时兜底重命名**后出现**的那个
+  3. **发号器必须扫暂存区**（`tempSubCategoryParamConfig`），只扫已落盘数据的话，
+     连点两次「添加参数」时第一个还没落盘，会**两次都发出 `s1`**
+  4. **两个键必须在同一次保存里一起写**（`saveConfigSubCategory` 是唯一写入点，先
+     `syncTempParamArray` 再序列化暂存区），否则会出现「名字已改、参数还挂在旧名下」的孤儿；
+     遗留入口 `saveSubCatConfig()` 用 `reconcileSubCategoryParamDefs` 按索引重挂兜底
+  5. **`getEffectiveParamDefs` 的结果必须缓存**（`_effectiveDefsCache`）：`checkParamFilter` 在
+     `filterAndRender` 里**对每个元器件**调用一次，不缓存就是每次 `JSON.parse` 两个可能很大的
+     localStorage 对象 × N 条数据。写入侧（`saveCustomParamDefinitions` / `saveSubCategoryParamDefs` /
+     `loadSettingsFromServer` 回填后）必须 `clearEffectiveParamDefsCache()`
+  6. **`renderParamFields` 取值改为 id 优先、索引兜底**（`params.find(x => x.id === def.id) || params[idx]`）：
+     老元器件的 `params` 数组短于新 defs 列表，纯 `params[idx]` 在 def 顺序变动时会错位
+  7. **导入老备份（v1.0/1.1）时该键为 `undefined`，必须保持本地不动**，不能用 `{}` 覆盖 ——
+     否则导入一份旧备份就会清空用户已配的子类别参数。`hasOwnProperty` 判定同理不能省，
+     否则用户把参数删空后内置默认会「复活」成删不掉的鬼影
+  8. **`updateParamFilterFields` 要按 defs 剪枝** `paramFilters`：`s*` 天然跨子类别不同义，
+     切子类别后残留的旧 key 会让列表被幽灵条件过滤（「无故变少」）
+- **顺带修掉的既有缺陷**（与新功能无关，但同批暴露）:
+  - `main.js` 保存元器件处两行 `const` 写在了对象字面量内部 ⇒ **整个 main.js 无法解析、首页完全不可用**。
+    由提交 `20fcbfe` 引入，已把声明提到 `this.components[index] = {` 之前
+  - `convertToUnit` 的硬编码表缺 `mW` / `GHz` / `B` / `KB` / `MB`，未知单位退化为倍率 `1`
+    ⇒ 单片机 Flash/SRAM、LED 功率、单片机主频的范围筛选**静默算错**。已补全并将表提为类字段
+    `BUILTIN_UNIT_TO_BASE`，`convertToUnit` 新增第 4 个可选参 `rates`（参数级倍率**优先于**内置表，
+    所以重名单位互不干扰）
+  - `renderConfigCategoryEditor` 用 `escapeHtml` 填 `value="..."`，而 `escapeHtml` **不转义双引号**
+    ⇒ 子类别名带 `"` 会把输入框截断。新渲染器一律用 `escapeAttr`
+- **本次刻意不动**: 另三套单位实现（`main.js parseValueWithUnit` / `matchesWithUnitEquivalence`、
+  `settings.html normalizeValue`、`lcsc-import.js parseValueAndUnit`）服务于**自由文本搜索**，
+  作用于任意字符串、拿不到 `unitRates`，且 `lcsc-import.js` 的输入是市场脏文本必须容错。
+  它们是「文本→数值」的**解析器**，而 `convertToUnit` 是「同一参数内两单位比较」的**换算器**，
+  只有后者需要用户定义的进制。统计页按用户决策不纳入生效范围
+
 ### 2026-09-19 (v20260427ax): 模板管理新增「位置编号」输入框，与自动匹配复选框互斥
 - **问题**: 「添加新模板」表单里与位置编号有关的只有既有的复选框「自动匹配位置编号」：
   `addTemplate()` 里 `location` 恒硬编码为 `''`，表单里**没有**能填它的控件 —— 而 `applyTemplate()`
