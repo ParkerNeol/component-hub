@@ -351,7 +351,7 @@ app.get('/api/data/components', (req, res) => {
         if (fs.existsSync(DATA_FILE)) {
             const raw = fs.readFileSync(DATA_FILE, 'utf-8');
             const data = JSON.parse(raw);
-            return res.json({ success: true, components: data.components || [] });
+            return res.json({ success: true, components: data.components || [], updatedAt: data.updatedAt });
         }
         res.json({ success: true, components: [] });
     } catch (e) {

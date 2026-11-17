@@ -3416,7 +3416,9 @@ class ComponentManager {
         try {
             // 保存前按位置编号排序（拷贝数组避免修改原引用）
             const sorted = [...this.components].sort((a, b) => this.compareLocationNumbers(a.location, b.location));
+            const now = new Date().toISOString();
             localStorage.setItem('electronicComponents', JSON.stringify(sorted));
+            localStorage.setItem('electronicComponents_version', now);
             // 异步同步到服务端文件（若后端运行）
             this.syncToServer();
         } catch (error) {
@@ -3512,25 +3514,43 @@ class ComponentManager {
 
     /**
      * 尝试从服务端文件加载数据（异步）
-     * 仅当 localStorage 为空时才从文件加载（首次访问），
-     * 避免删除/修改数据后刷新又被旧文件数据覆盖
+     * 版本比对策略：
+     * - 本地无数据 → 直接采用服务端数据
+     * - 服务端 updatedAt 比本地版本戳更新 → 覆盖本地（多设备同步场景）
+     * - 服务端 updatedAt 比本地旧或相等 → 保持本地（本地可能刚修改还没同步完）
+     * - 服务端未运行 → catch 捕获，保持本地（纯 file:// 离线模式不受影响）
      */
     async tryLoadFromServer() {
         try {
-            // localStorage 已有数据时，不覆盖（本地可能更新）
-            const localData = localStorage.getItem('electronicComponents');
-            if (localData && JSON.parse(localData).length > 0) {
-                console.log('[Server] 本地已有数据，跳过服务端加载');
-                return;
-            }
-
             const resp = await fetch('/api/data/components');
             if (!resp.ok) return;
             const result = await resp.json();
-            if (result.success && Array.isArray(result.components) && result.components.length > 0) {
+            if (!result.success || !Array.isArray(result.components)) return;
+
+            const localData = localStorage.getItem('electronicComponents');
+            const localVersion = localStorage.getItem('electronicComponents_version');
+
+            if (!localData || JSON.parse(localData).length === 0) {
+                // 本地无数据 → 首次访问，直接采用服务端
                 this.components = result.components;
                 localStorage.setItem('electronicComponents', JSON.stringify(this.components));
-                console.log('[Server] 从服务端文件加载了', this.components.length, '个元器件');
+                localStorage.setItem('electronicComponents_version', result.updatedAt || '');
+                console.log('[Server] 从服务端加载了', this.components.length, '个元器件');
+            } else if (result.updatedAt && result.updatedAt > localVersion) {
+                // 服务端比本地新 → 覆盖本地（多设备同步）
+                this.components = result.components;
+                localStorage.setItem('electronicComponents', JSON.stringify(this.components));
+                localStorage.setItem('electronicComponents_version', result.updatedAt);
+                console.log('[Server] 服务端数据更新 (服务端:', result.updatedAt, '本地:', localVersion, '), 已同步');
+            } else {
+                // 本地数据已是最新或本地版本未知（旧版本升级上来的）
+                // 本地版本号缺失时，将当前服务端版本写入，下次可正确比对
+                if (!localVersion && result.updatedAt) {
+                    localStorage.setItem('electronicComponents_version', result.updatedAt);
+                    console.log('[Server] 首次同步版本戳:', result.updatedAt);
+                } else {
+                    console.log('[Server] 本地数据已是最新，跳过');
+                }
             }
         } catch (e) {
             console.log('[Server] 服务端未运行，使用本地数据');
